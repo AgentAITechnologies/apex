@@ -1,0 +1,20 @@
+Jarvis - Proprietary Software License
+Copyright (c) 2024 Rodman Myers. All Rights Reserved.
+
+This software and associated documentation files (the "Software") may not be used, 
+copied, modified, merged, published, distributed, sublicensed, and/or sold by anyone 
+other than the copyright holder (Rodman Myers) under any circumstances.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A 
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT 
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION 
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+This license notice and copyright must be included in all copies or substantial 
+portions of the Software.
+
+The Software is the proprietary, confidential information of Rodman Myers. Any 
+use, reproduction, modification, distribution, public performance or display not 
+explicitly authorized by the copyright holder is strictly prohibited.
