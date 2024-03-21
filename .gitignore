@@ -1,2 +1,14 @@
 # dot-env
 *.env
+
+# test JSON parsing and YAML states
+test.json
+test.yaml
+
+# scratch
+scratch.ipynb
+scratch.py
+prototyping/
+
+# generated output
+*.png
