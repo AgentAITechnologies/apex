@@ -1,0 +1,41 @@
+[
+            
+    { "trigger": "notready", "source": "start_select-ready", "dest": "notready_select-get-set-state" },
+    { "trigger": "ready", "source": "start_select-ready", "dest": "ready_select-tool" },
+
+
+    { "trigger": "selectgetstate", "source": "notready_select-get-set-state", "dest": "notready_select-get-set-state_get-state_select-tool" },
+    { "trigger": "selectsetstate", "source": "notready_select-get-set-state", "dest": "notready_select-get-set-state_set-state_select-tool" },
+
+    
+    { "trigger": "question", "source": "notready_select-get-set-state_get-state_select-tool", "dest": "notready_select-get-set-state_get-state_select-tool_compose-question" },
+    { "trigger": "python", "source": "notready_select-get-set-state_get-state_select-tool", "dest": "notready_select-get-set-state_get-state_select-tool_compose-python" },
+    { "trigger": "powershell", "source": "notready_select-get-set-state_get-state_select-tool", "dest": "notready_select-get-set-state_get-state_select-tool_compose-powershell" },
+    { "trigger": "screenshot", "source": "notready_select-get-set-state_get-state_select-tool", "dest": "notready_select-get-set-state_get-state_select-tool_compose-screenshot" },
+
+    { "trigger": "execute", "source": ["notready_select-get-set-state_get-state_select-tool_compose-question", "notready_select-get-set-state_get-state_select-tool_compose-python", "notready_select-get-set-state_get-state_select-tool_compose-powershell", "notready_select-get-set-state_get-state_select-tool_compose-screenshot"], "dest": "notready_select-ready" },
+
+
+    { "trigger": "message", "source": "notready_select-get-set-state_set-state_select-tool", "dest": "notready_select-get-set-state_set-state_select-tool_compose-message" },
+    { "trigger": "python", "source": "notready_select-get-set-state_set-state_select-tool", "dest": "notready_select-get-set-state_set-state_select-tool_compose-python" },
+    { "trigger": "powershell", "source": "notready_select-get-set-state_set-state_select-tool", "dest": "notready_select-get-set-state_set-state_select-tool_compose-powershell" },
+    { "trigger": "screenshot", "source": "notready_select-get-set-state_set-state_select-tool", "dest": "notready_select-get-set-state_set-state_select-tool_compose-screenshot" },
+
+    { "trigger": "execute", "source": ["notready_select-get-set-state_set-state_select-tool_compose-message", "notready_select-get-set-state_set-state_select-tool_compose-python", "notready_select-get-set-state_set-state_select-tool_compose-powershell", "notready_select-get-set-state_set-state_select-tool_compose-screenshot"], "dest": "notready_select-ready" },
+
+
+    { "trigger": "message", "source": "ready_select-tool", "dest": "ready_select-tool_compose-message" },
+    { "trigger": "python", "source": "ready_select-tool", "dest": "ready_select-tool_compose-python" },
+    { "trigger": "powershell", "source": "ready_select-tool", "dest": "ready_select-tool_compose-powershell" },
+    { "trigger": "screenshot", "source": "ready_select-tool", "dest": "ready_select-tool_compose-screenshot" },
+
+    { "trigger": "execute", "source": ["ready_select-tool_compose-message", "ready_select-tool_compose-python", "ready_select-tool_compose-powershell", "ready_select-tool_compose-screenshot"], "dest": "ready_select-done" },
+
+
+    { "trigger": "ready", "source": "notready_select-ready", "dest": "ready_select-tool" },
+    { "trigger": "notready", "source": "notready_select-ready", "dest": "notready_select-get-set-state" },
+
+    { "trigger": "done", "source": "ready_select-done", "dest": "done" },
+    { "trigger": "failure", "source": "ready_select-done", "dest": "failure-reflection" }
+
+]

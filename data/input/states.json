@@ -1,0 +1,71 @@
+{
+    "name": "root",
+
+    "children": [
+            {
+                "name": "start",
+                "children": [{"name": "select-ready"}]
+            },
+            
+            {
+                "name": "notready", 
+                
+                "children": [
+            
+                    {
+                        "name": "select-get-set-state",
+            
+                        "children": [
+            
+                                {
+                                    "name": "get-state",
+            
+                                        "children":
+                                        [
+                                            {
+                                                "name": "select-tool",
+                                                
+                                                "children": [{"name": "compose-question"}, {"name": "compose-python"}, {"name": "compose-powershell"}, {"name": "compose-screenshot"}]
+                                            }
+                                        ]
+                                },
+            
+                                {
+                                    "name": "set-state",
+            
+                                        "children": [
+            
+                                            {
+                                                "name": "select-tool",
+                                                
+                                                "children": [{"name": "compose-message"}, {"name": "compose-python"}, {"name": "compose-powershell"}, {"name": "compose-screenshot"}]
+                                            }
+                                        ]
+                                }
+                        ]
+                    },
+                    
+                    {"name": "select-ready"}
+                ]
+            },
+            
+            {
+                "name": "ready",
+            
+                "children": [
+            
+                    {
+                        "name": "select-tool",
+                                    
+                        "children": [{"name": "compose-message"}, {"name": "compose-python"}, {"name": "compose-powershell"}, {"name": "compose-screenshot"}]
+                    },
+                    
+                    {"name": "select-done"}
+                ]
+            },
+            
+            {"name": "failure-reflection"},
+            
+            {"name": "done"}
+        ]
+}
