@@ -1,4 +1,6 @@
 [
+
+    { "trigger": "selectready", "source": "start", "dest": "start_select-ready" },
             
     { "trigger": "notready", "source": "start_select-ready", "dest": "notready_select-get-set-state" },
     { "trigger": "ready", "source": "start_select-ready", "dest": "ready_select-tool" },

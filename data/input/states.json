@@ -4,7 +4,23 @@
     "children": [
             {
                 "name": "start",
-                "children": [{"name": "select-ready"}]
+                "children": [
+                    {
+                        "name": "select-ready",
+                        "system": "test",
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": "userprompt"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
             },
             
             {
