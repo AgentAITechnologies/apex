@@ -48,9 +48,6 @@ def main():
 
     task = input(CLI_STRS["init"])
 
-    common_frmt = {
-        "task": task
-    }
 
     i = 0
     done = False
@@ -59,12 +56,9 @@ def main():
         print(f"\n[main] state {i}")
         csm.print_current_state()
 
-        csm.current_state.frmt = common_frmt
-
-        if "select-tool" in csm.current_state.get_hierarchy_path() and "select-ready" in csm.state_history[-1].get_hierarchy_path():
-            csm.current_state.frmt.update({
-                "state_history_str": "You have determined that you do not need additional information before completing the task, such as asking the user a question to better understand your task or getting more context about the system's current state, and do not need to configure the system into a specific state to perform the task."
-            })
+        csm.current_state.frmt.update({
+            "task": task
+        })
 
         input_messages = csm.current_state.build_messages()
         system_prompt = csm.current_state.build_system()
