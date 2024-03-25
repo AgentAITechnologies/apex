@@ -7,18 +7,24 @@
                 "children": [
                     {
                         "name": "select-ready",
-                        "system": "test",
+                        "system": "Test animal: {cat}",
+                        "system_frmtstrs": {
+                            "cat": "meow"
+                        },
                         "messages": [
                             {
                                 "role": "user",
                                 "content": [
                                     {
                                         "type": "text",
-                                        "text": "userprompt"
+                                        "text": "The cow says: {cow}"
                                     }
                                 ]
                             }
-                        ]
+                        ],
+                        "messages_frmtstrs": {
+                            "cow": "moo"
+                        }
                     }
                 ]
             },
