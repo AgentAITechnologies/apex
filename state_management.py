@@ -4,12 +4,12 @@ import os
 
 
 class ConversationState:
-    def __init__(self, name=None, parent=None, system="", messages=[], frmtstrs={}):
+    def __init__(self, name=None, parent=None, system="", messages=[], frmt={}):
         self.name = name
 
         self.system = system
         self.messages = messages
-        self.frmtstrs = frmtstrs
+        self.frmt = frmt
 
         self.parent = parent
 
@@ -45,6 +45,29 @@ class ConversationState:
             return self.parent.get_hierarchy_path() + "_" + self.name
         else:
             return self.name
+        
+    def build_messages(self):
+        messages = []
+
+        for message in self.messages:
+            new_msg_content = []
+
+            for content in message["content"]:
+                new_msg_content.append({
+                        "type": content["type"],
+                        "text": content["text"].format(**self.frmt)
+                })
+
+            messages.append({
+                "role":  message["role"],
+                "content": new_msg_content
+            })
+        
+        return messages
+    
+    def build_system(self):
+        return self.system.format(**self.frmt)
+
 
 
 class ConversationStateMachine:
@@ -54,9 +77,11 @@ class ConversationStateMachine:
         self.initialize_conversation_states(state_data)
         self.initialize_transitions(transition_data)
         self.current_state = self.state_map[init_state_path]
+        self.state_history = []
 
     def transition(self, trigger):
         if trigger in self.current_state.transitions:
+            self.state_history.append(self.current_state)
             self.current_state = self.current_state.transitions[trigger]
             return self.current_state
         else:
@@ -69,7 +94,7 @@ class ConversationStateMachine:
                                       parent=parent,
                                       system=state_data.get("system", ""),
                                       messages=state_data.get("messages", []),
-                                      frmtstrs = state_data.get("frmtstrs", {}))
+                                      frmt = state_data.get("frmt", {}))
 
             for child_data in state_data.get("children", []):
                 child_state = create_state(child_data, parent=state)
