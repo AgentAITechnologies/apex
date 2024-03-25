@@ -7,23 +7,20 @@
                 "children": [
                     {
                         "name": "select-ready",
-                        "system": "Test animal: {cat}",
-                        "system_frmtstrs": {
-                            "cat": "meow"
-                        },
+                        "system": "You are a helpful agent that controls a desktop PC who takes actions on behalf of the computer's user to complete a task. You have access to a Python interpreter, a shell for the underlying system (PowerShell), the screen (by taking and viewing screenshots), and a mouse and keyboard emulator (via the Python interpreter). You may determine the current state of the system programmatically and/or by viewing a screenshot. A user is now asking you to complete a task on their behalf. The task is: \"{task}\". It is now your job to determine if you need additional information before completing the task, such as asking the user a question to better understand your task or getting more context about the system's current state, or need to configure the system into a specific state to perform the task. Indicate your decision with a JSON object with a property \"ready\" set to \"false\" (I need more information or the opportunity to configure the state of the system) or \"true\" (I am able to perform the task directly by writing a Python script, writing a PowerShell script, emulating mouse and keyboard input, or passing a message to the user). Also include a property \"reason\" that contains the reason why you have made this determination. Do not include any content besides the specified JSON.",
                         "messages": [
                             {
                                 "role": "user",
                                 "content": [
                                     {
                                         "type": "text",
-                                        "text": "The cow says: {cow}"
+                                        "text": "Do you need to get any additional information or context from the user or system or do you need to configure the system into a specific state to perform the task \"{task}\"? Why or why not?"
                                     }
                                 ]
                             }
                         ],
-                        "messages_frmtstrs": {
-                            "cow": "moo"
+                        "frmtstrs": {
+                            "task": "Count to 10."
                         }
                     }
                 ]
