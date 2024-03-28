@@ -2,7 +2,9 @@ import anthropic
 import os
 import dotenv
 import json
+import re
 
+from execution_management import exec_python, extract_python
 from state_management import ConversationStateMachine
 
 
@@ -13,15 +15,14 @@ CLI_STRS = {
     "init": "What would you like me to do? > "
 }
 
-def parse_message(message):
+def parse_response(message):
     if message.content[0].type == "text":
         try:
             return json.loads(message.content[0].text)
 
         except json.JSONDecodeError as e:
-            print("Invalid JSON:")
-            print(f"Error: {str(e)}")
-            return None
+            print("Not JSON")
+            return message.content[0].text
 
     else:
         print(f"[parse_message] message.content[0].type was not text: {message.content[0].type}")
@@ -41,43 +42,43 @@ def main():
     with open(os.path.join(os.environ.get("INPUT_DIR"), "transitions.json")) as file:
         transition_data = json.load(file)
 
+    with open(os.path.join(os.environ.get("INPUT_DIR"), "global_frmt.json")) as file:
+        global_frmt = json.load(file)
+
 
     csm = ConversationStateMachine(state_data=state_data, transition_data=transition_data, init_state_path='start')
     csm.transition("selectready")
 
-
     task = input(CLI_STRS["init"])
 
-
+    global_frmt.update({"task": task})
+    
     i = 0
-    done = False
-
-    while not done:
+    while csm.current_state.get_hierarchy_path() != "done":
         print(f"\n[main] state {i}")
         csm.print_current_state()
 
-        csm.current_state.frmt.update({
-            "task": task
-        })
+        csm.current_state.configure_llm_call(frmt_update=global_frmt)
 
-        input_messages = csm.current_state.build_messages()
-        system_prompt = csm.current_state.build_system()
+        if i >= 3: # debug (this code only handles start -> select-ready -> select-tool -> compose-python -> exec&stop)
+            return 
 
-        if i >= 2: # debug (this code only handles start -> select-ready -> select-tool -> STOP)
-            return
-        
-        message = client.messages.create(
-            model=os.environ.get("MODEL"),
-            max_tokens=4000,
-            temperature=0,
-            system=system_prompt,
-            messages=input_messages
-        )
-        
-        message_json = parse_message(message)
+        response = csm.current_state.llm_call(client)
 
-        if message_json != None:
-            csm.transition(message_json["action"].lower())
+        parsed_response = parse_response(response)
+        print(f"parsed_response:\n{parsed_response}")
+
+        if isinstance(parsed_response, str) and "python" in parsed_response.lower() and "compose-python" in csm.current_state.get_hierarchy_path():
+            code = extract_python(parsed_response)
+            stdout, stderr = exec_python(code)
+
+            print(f"[main] Python script execution results for task \"{task}\":\nstdout:\n{stdout}\nstderr:\n{stderr}")
+
+            csm.transition("execute").update_frmt({"stdout": stdout, "stderr": stderr})
+
+        if isinstance(parsed_response, dict):
+            if "action" in parsed_response:
+                csm.transition(parsed_response["action"].lower()).update_frmt(parsed_response)
         
         i += 1
 

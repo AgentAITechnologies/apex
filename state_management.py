@@ -11,10 +11,42 @@ class ConversationState:
         self.messages = messages
         self.frmt = frmt
 
+        self.formatted_system = None
+        self.formatted_messages = None
+
+        self.turns = []
+
         self.parent = parent
 
         self.transitions = {}
         self.children = []
+
+    def configure_llm_call(self, frmt_update={}):
+        self.update_frmt(frmt_update)
+
+        self.build_system()
+        self.build_messages()
+
+        return self.formatted_system, self.formatted_messages
+
+    def update_frmt(self, frmt_update):
+        self.frmt.update(frmt_update)
+
+        # format the format strings
+        for key in self.frmt:
+            self.frmt[key] = self.frmt[key].format(**self.frmt)
+    
+    def llm_call(self, client):
+        if self.formatted_system and self.formatted_messages:
+            message = client.messages.create(
+                model=os.environ.get("MODEL"),
+                max_tokens=4000,
+                temperature=0,
+                system=self.formatted_system,
+                messages=self.formatted_messages
+            )
+            
+            return message
 
     def add_message(self, message):
         self.messages.append(message)
@@ -47,27 +79,26 @@ class ConversationState:
             return self.name
         
     def build_messages(self):
-        messages = []
+        self.formatted_messages = []
 
         for message in self.messages:
             new_msg_content = []
 
             for content in message["content"]:
+                new_msg_content_text = content["text"].format(**self.frmt)
+
                 new_msg_content.append({
                         "type": content["type"],
-                        "text": content["text"].format(**self.frmt)
+                        "text": new_msg_content_text
                 })
 
-            messages.append({
+            self.formatted_messages.append({
                 "role":  message["role"],
                 "content": new_msg_content
             })
-        
-        return messages
     
     def build_system(self):
-        return self.system.format(**self.frmt)
-
+        self.formatted_system = self.system.format(**self.frmt)
 
 
 class ConversationStateMachine:
@@ -105,7 +136,7 @@ class ConversationStateMachine:
         self.root_state = create_state(state_data)
 
     def find_state_by_path(self, path):
-            return self.state_map.get(path)
+        return self.state_map.get(path)
     
     def initialize_transitions(self, transition_data=None):
         self.transition_data = transition_data
