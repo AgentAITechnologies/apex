@@ -52,16 +52,25 @@ def main():
     task = input(CLI_STRS["init"])
 
     global_frmt.update({"task": task})
+
     
     i = 0
     while csm.current_state.get_hierarchy_path() != "done":
         print(f"\n[main] state {i}")
         csm.print_current_state()
 
-        csm.current_state.configure_llm_call(frmt_update=global_frmt)
+        if csm.current_state.get_hierarchy_path() == "ready_select-done":
+            results = csm.build_action_results()
 
-        if i >= 3: # debug (this code only handles start -> select-ready -> select-tool -> compose-python -> exec&stop)
-            return 
+            action_results_str = "You took these actions to accomplish the task:\n"
+            action_results_str += json.dumps(results, indent=4)
+
+            csm.current_state.update_frmt({"action_results": results})
+            csm.current_state.update_frmt({"action_results_str": action_results_str}, recursive=False)
+
+            print(action_results_str)
+
+        csm.current_state.configure_llm_call(frmt_update=global_frmt)
 
         response = csm.current_state.llm_call(client)
 
@@ -74,7 +83,15 @@ def main():
 
             print(f"[main] Python script execution results for task \"{task}\":\nstdout:\n{stdout}\nstderr:\n{stderr}")
 
-            csm.transition("execute").update_frmt({"stdout": stdout, "stderr": stderr})
+            frmt_update = {
+                "result": {
+                    "action": "execute python",
+                    "code": code,
+                    "output": {"stdout": stdout, "stderr": stderr}
+                }
+            }
+
+            csm.transition("execute").update_frmt(frmt_update)
 
         if isinstance(parsed_response, dict):
             if "action" in parsed_response:

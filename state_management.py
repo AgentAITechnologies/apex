@@ -1,4 +1,4 @@
-import json
+from copy import deepcopy
 import pygraphviz as pgv
 import os
 
@@ -14,7 +14,7 @@ class ConversationState:
         self.formatted_system = None
         self.formatted_messages = None
 
-        self.turns = []
+        self.result = None
 
         self.parent = parent
 
@@ -29,12 +29,22 @@ class ConversationState:
 
         return self.formatted_system, self.formatted_messages
 
-    def update_frmt(self, frmt_update):
+    def update_frmt(self, frmt_update, recursive=True):
         self.frmt.update(frmt_update)
-
-        # format the format strings
-        for key in self.frmt:
-            self.frmt[key] = self.frmt[key].format(**self.frmt)
+        
+        def recursive_format(d):
+            for key, value in d.items():
+                if isinstance(value, dict):
+                    recursive_format(value)
+                elif isinstance(value, str):
+                    try:
+                        d[key] = value.format(**self.frmt)
+                    except KeyError:
+                        d[key] = value
+                        print(f"[state_mgmt] KeyError: {key}\nassigned to\n\"{value}\"\nwithout recursion")
+        
+        if recursive:
+            recursive_format(self.frmt)
     
     def llm_call(self, client):
         if self.formatted_system and self.formatted_messages:
@@ -112,12 +122,19 @@ class ConversationStateMachine:
 
     def transition(self, trigger):
         if trigger in self.current_state.transitions:
-            self.state_history.append(self.current_state)
+            self.state_history.append(deepcopy(self.current_state))
             self.current_state = self.current_state.transitions[trigger]
             return self.current_state
         else:
             print(f"{self.PRINT_PREFIX} invalid trigger '{trigger}' for state {self.current_state.get_hierarchy_path()}")
             return None
+        
+    def build_action_results(self):
+        action_results = []
+        for state in self.state_history+[self.current_state]:
+            if "result" in state.frmt:
+                action_results.append(state.frmt["result"])
+        return action_results
 
     def initialize_conversation_states(self, state_data):
         def create_state(state_data, parent=None):
