@@ -4,11 +4,15 @@ import dotenv
 import json
 import re
 
-from execution_management import exec_python, extract_python
+import inspect
+
 from state_management import ConversationStateMachine
+
+from callbacks import exec_callbacks
 
 
 dotenv.load_dotenv()
+
 
 
 CLI_STRS = {
@@ -53,47 +57,25 @@ def main():
 
     global_frmt.update({"task": task})
 
-    
+
     i = 0
     while csm.current_state.get_hierarchy_path() != "done":
         print(f"\n[main] state {i}")
         csm.print_current_state()
 
-        if csm.current_state.get_hierarchy_path() == "ready_select-done":
-            results = csm.build_action_results()
-
-            action_results_str = "You took these actions to accomplish the task:\n"
-            action_results_str += json.dumps(results, indent=4)
-
-            csm.current_state.update_frmt({"action_results": results})
-            csm.current_state.update_frmt({"action_results_str": action_results_str}, recursive=False)
-
-            print(action_results_str)
+        exec_callbacks(csm.current_state.get_hpath(), "before", locals=locals())
 
         csm.current_state.configure_llm_call(frmt_update=global_frmt)
-
         response = csm.current_state.llm_call(client)
 
         parsed_response = parse_response(response)
         print(f"parsed_response:\n{parsed_response}")
 
-        if isinstance(parsed_response, str) and "python" in parsed_response.lower() and "compose-python" in csm.current_state.get_hierarchy_path():
-            code = extract_python(parsed_response)
-            stdout, stderr = exec_python(code)
+        # assumes each csm.transition() is called if an after callback is defined
+        had_after_callbacks = exec_callbacks(csm.current_state.get_hpath(), "after", locals=locals())
 
-            print(f"[main] Python script execution results for task \"{task}\":\nstdout:\n{stdout}\nstderr:\n{stderr}")
-
-            frmt_update = {
-                "result": {
-                    "action": "execute python",
-                    "code": code,
-                    "output": {"stdout": stdout, "stderr": stderr}
-                }
-            }
-
-            csm.transition("execute").update_frmt(frmt_update)
-
-        if isinstance(parsed_response, dict):
+        # default transition 
+        if not had_after_callbacks and isinstance(parsed_response, dict):
             if "action" in parsed_response:
                 csm.transition(parsed_response["action"].lower()).update_frmt(parsed_response)
         

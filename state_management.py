@@ -88,6 +88,9 @@ class ConversationState:
         else:
             return self.name
         
+    def get_hpath(self):
+        return self.get_hierarchy_path()
+        
     def build_messages(self):
         self.formatted_messages = []
 
