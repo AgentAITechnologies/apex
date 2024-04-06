@@ -1,148 +1,117 @@
 {
-    "name": "root",
+    "name": "Root",
 
     "children": [
             {
-                "name": "start",
+                "name": "Start",
+                
                 "children": [
-                    {
-                        "name": "select-ready",
-                        
-                        "system": "{prefix} A user is now asking you to complete a task on their behalf. The task is: \"{task}\". It is now your job to determine if you need additional information before completing the task, such as asking the user a question to better understand your task or getting more context about the system's current state, or need to configure the system into a specific state to perform the task. Indicate your decision with a JSON object that contains a property \"action\" set to \"notready\" (I need more information or the opportunity to configure the state of the system) or \"ready\" (I am able to perform the task directly by writing a Python script, writing a PowerShell script, emulating mouse and keyboard input, or passing a message to the user). Also include a property \"reason\" that contains the reason why you have made this determination. Do not include any content besides the specified JSON.",
-                        
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": "Do you need to get any additional information or context from the user or system or do you need to configure the system into a specific state to perform the task \"{task}\"? Why or why not?"
-                                    }
-                                ]
-                            }
-                        ]
-                    }
+
+                    {"name": "SelectReady"}
+
                 ]
             },
             
             {
-                "name": "notready", 
+                "name": "Notready", 
                 
                 "children": [
             
                     {
-                        "name": "select-get-set-state",
+                        "name": "SelectGetSetState",
             
                         "children": [
             
                                 {
-                                    "name": "get-state",
+                                    "name": "GetState",
             
                                         "children":
                                         [
                                             {
-                                                "name": "select-tool",
+                                                "name": "SelectTool",
                                                 
-                                                "children": [{"name": "compose-question"}, {"name": "compose-python"}, {"name": "compose-powershell"}, {"name": "compose-screenshot"}]
+                                                "children": [
+
+                                                    {"name": "ComposeQuestion"},
+
+                                                    {"name": "ComposePython"},
+
+                                                    {"name": "ComposePowershell"},
+
+                                                    {"name": "ComposeScreenshot"}
+                                                ]
                                             }
                                         ]
                                 },
             
                                 {
-                                    "name": "set-state",
+                                    "name": "SetState",
             
                                         "children": [
             
                                             {
-                                                "name": "select-tool",
+                                                "name": "SelectTool",
                                                 
-                                                "children": [{"name": "compose-message"}, {"name": "compose-python"}, {"name": "compose-powershell"}, {"name": "compose-screenshot"}]
+                                                "children": [
+
+                                                    {"name": "ComposeMessage"},
+
+                                                    {"name": "ComposePython"},
+
+                                                    {"name": "ComposePowershell"},
+
+                                                    {"name": "InputEmulation"}
+
+                                                ]
                                             }
                                         ]
                                 }
                         ]
                     },
                     
-                    {"name": "select-ready"}
+                    {"name": "SelectReady"}
                 ]
             },
             
             {
-                "name": "ready",
+                "name": "Ready",
             
                 "children": [
             
                     {
-                        "name": "select-tool",
-
-                        "system": "{prefix} A user is now asking you to complete a task on their behalf. The task is: \"{task}\". {action_results_str} Thus, you can complete the task by writing a Python script, writing a PowerShell script, emulating mouse and keyboard events, or by simply passing a message to the user. You must now choose which action to take. Respond with a JSON object containing a property \"action\" with the value \"python\" if you wish to complete the task using Python, \"powershell\" if you wish to complete the task using PowerShell, \"emulation\" if you wish to complete the task using mouse and keyboard emulation, or \"message\" if you wish to complete the task by passing a message to the user. Include a property \"reason\" that contains the reason you believe this action is most appropriate and efficient. You must only choose the appropriate action, not perform it. Do not include any content besides the specified JSON.",
-                        
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": "Which action do you want to take to complete the task \"{task}\", and why is this action the best choice?"
-                                    }
-                                ]
-                            }
-                        ],
-                        
-                        "frmt": {
-                            "action_results_str": "You have determined that you do not need additional information before completing the task, such as asking the user a question to better understand your task or getting more context about the system's current state, and do not need to configure the system into a specific state to perform the task."
-                        },
+                        "name": "SelectTool",
                                     
                         "children": [
-                            {"name": "compose-message"},
-                            {
-                                "name": "compose-python",
 
-                                "system":"{prefix} A user is now asking you to complete a task on their behalf. The task is: \"{task}\". {action_results_str} You will now be instructed to write the script to be invoked on behalf of the user. Place the script within a fenced Markdown code block. Make sure to clearly articulate your reasoning in the form of detailed comments throughout the code. Do not include any additional content besides the specified Markdown containing well-commented Python code.",
+                            {"name": "ComposeMessage"},
 
-                                "messages": [
-                                    {
-                                        "role": "user",
-                                        "content": [
-                                            {
-                                                "type": "text",
-                                                "text": "Write the script to complete the task: {task}"
-                                            }
-                                        ]
-                                    }
-                                ],
-                                
-                                "frmt": {
-                                    "action_results_str": "You decided to directly invoke a Python script without getting any additional information about the state of the system or making any configuration changes to the system before completing the task for the following reason: \"{reason}\"."
-                                }
-                            },
-                            {"name": "compose-powershell"},
-                            {"name": "compose-screenshot"}
+                            {"name": "ComposePython"},
+
+                            {"name": "ComposePowershell"},
+
+                            {"name": "ComposeScreenshot"}
+
                         ]
                     },
                     
-                    {
-                        "name": "select-done",
-
-                        "system":"{prefix} A user has asked you to complete a task on their behalf. The task was: \"{task}\". {action_results_str} You will now be instructed to determine if the task was completed successfully, considering the history of actions you have taken and their results. Respond with a JSON object containing a property \"action\" with the value \"done\" if the task has been completed successfully or \"failure\" if these results do not reflect successful task completion. Include a property \"reason\" that contains a comprehensive explanation of why you made this decision. Do not include any content besides the specified JSON.",
-
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": "Do these results reflect successful completion of the task \"{task}\"? Why or why not?"
-                                    }
-                                ]
-                            }
-                        ]
-                    }
+                    {"name": "SelectDone"}
                 ]
             },
+
+            { 
+                "name": "Failure",
+                
+                "children": [
+
+                    {"name": "IdentifyProblems"},
+
+                    {"name": "SelectReady"}
+
+                ]
+            },
+
+            {"name": "LogDone"},
             
-            {"name": "failure-reflection"},
-            
-            {"name": "done"}
+            {"name": "Done"}
         ]
 }

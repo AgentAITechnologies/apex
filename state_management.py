@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 from copy import deepcopy
 import pygraphviz as pgv
 import os
 
+from typing import Optional
+
+from callbacks import *
+
 
 class ConversationState:
-    def __init__(self, name=None, parent=None, system="", messages=[], frmt={}):
+    def __init__(self, name=None, parent: Optional[ConversationState] = None, system="", messages=[], frmt={}):
         self.name = name
 
         self.system = system
@@ -21,6 +27,8 @@ class ConversationState:
         self.transitions = {}
         self.children = []
 
+        self.load_callback()
+
     def configure_llm_call(self, frmt_update={}):
         self.update_frmt(frmt_update)
 
@@ -29,7 +37,7 @@ class ConversationState:
 
         return self.formatted_system, self.formatted_messages
 
-    def update_frmt(self, frmt_update, recursive=True):
+    def update_frmt(self, frmt_update, recursive=False):
         self.frmt.update(frmt_update)
         
         def recursive_format(d):
@@ -41,22 +49,24 @@ class ConversationState:
                         d[key] = value.format(**self.frmt)
                     except KeyError:
                         d[key] = value
-                        print(f"[state_mgmt] KeyError: {key}\nassigned to\n\"{value}\"\nwithout recursion")
+                        # print(f"[state_mgmt] KeyError: {key}\nassigned to\n\"{value}\"\nwithout recursion")
         
         if recursive:
             recursive_format(self.frmt)
     
-    def llm_call(self, client):
-        if self.formatted_system and self.formatted_messages:
-            message = client.messages.create(
-                model=os.environ.get("MODEL"),
-                max_tokens=4000,
-                temperature=0,
-                system=self.formatted_system,
-                messages=self.formatted_messages
-            )
-            
-            return message
+    def llm_call(self, client, formatted_system, formatted_messages):
+        self.formatted_system = formatted_system
+        self.formatted_messages = formatted_messages
+
+        message = client.messages.create(
+            model=os.environ.get("MODEL"),
+            max_tokens=4000,
+            temperature=0,
+            system=formatted_system,
+            messages=formatted_messages
+        )
+        
+        return message
 
     def add_message(self, message):
         self.messages.append(message)
@@ -64,7 +74,7 @@ class ConversationState:
     def add_transition(self, trigger, next_state):
         self.transitions[trigger] = next_state
 
-    def add_child(self, child_state):
+    def add_child(self, child_state: ConversationState):
         self.children.append(child_state)
         child_state.parent = self
 
@@ -76,22 +86,22 @@ class ConversationState:
         else:
             return None
 
-    def get_root(self):
+    def get_root(self) -> ConversationState:
         if self.parent:
             return self.parent.get_root()
         else:
             return self
 
-    def get_hierarchy_path(self):
-        if self.parent and self.parent.name != "root":
-            return self.parent.get_hierarchy_path() + "_" + self.name
+    def get_hpath(self) -> Optional[str]:
+        if self.parent and self.parent.name != "Root":
+            return self.parent.get_hpath() + "_" + self.name
         else:
             return self.name
         
-    def get_hpath(self):
-        return self.get_hierarchy_path()
-        
     def build_messages(self):
+        # TODO: REDO THIS ENTIRE APPROACH
+        # Load messages from memory.py, dynamically include frmt within memory.py
+        '''
         self.formatted_messages = []
 
         for message in self.messages:
@@ -109,9 +119,43 @@ class ConversationState:
                 "role":  message["role"],
                 "content": new_msg_content
             })
+            '''
     
     def build_system(self):
+        # TODO: REDO THIS ENTIRE APPROACH
+        # Load system prompt from file, dynamically include persistence from other files
+
+        '''
+        with open(os.path.join(os.environ.get("INPUT_DIR"), os.environ.get("SYS_PRMPT_DIR"), self.get_hpath()+".md"), 'r') as f:
+            self.system = f.read()
+
+        frmt = {}
+
+        for key, value in self.frmt.items():
+            if isinstance(value, str):
+                frmt[key] = value
+            elif isinstance(value, dict):
+                frmt[key] = value["_content"]
+
         self.formatted_system = self.system.format(**self.frmt)
+        '''
+
+    def load_callback(self):
+        callback_class_name = f"{self.get_hpath()}_Callback"
+        callback_class = globals().get(callback_class_name)
+        if callback_class:
+            self.callback = callback_class()
+        else:
+            print(f"[CSM] no callback found for state {self.get_hpath()}")
+            self.callback = None
+
+    def on_enter(self, csm: ConversationStateMachine, locals):
+        if self.callback:
+            self.callback.on_enter(csm, locals)
+
+    def on_exit(self, csm: ConversationStateMachine, locals):
+        if self.callback:
+            self.callback.on_exit(csm, locals)
 
 
 class ConversationStateMachine:
@@ -120,17 +164,31 @@ class ConversationStateMachine:
     def __init__(self, state_data=None, transition_data=None, init_state_path=None):
         self.initialize_conversation_states(state_data)
         self.initialize_transitions(transition_data)
-        self.current_state = self.state_map[init_state_path]
-        self.state_history = []
 
-    def transition(self, trigger):
+        self.current_state: ConversationState = self.state_map[init_state_path]
+        self.state_history: list[ConversationState] = []
+    
+    def transition(self, trigger, locals) -> Optional[ConversationState]:
         if trigger in self.current_state.transitions:
+            # call exit callback
+            self.current_state.on_exit(self, locals)
+            # update state history
             self.state_history.append(deepcopy(self.current_state))
+            # update current state
             self.current_state = self.current_state.transitions[trigger]
+            # call enter callback
+            self.current_state.on_enter(self, locals)
+            # return next state
             return self.current_state
         else:
-            print(f"{self.PRINT_PREFIX} invalid trigger '{trigger}' for state {self.current_state.get_hierarchy_path()}")
+            print(f"{self.PRINT_PREFIX} invalid trigger '{trigger}' for state {self.current_state.get_hpath()}")
             return None
+        
+    def on_enter(self, locals):
+        return self.current_state.on_enter(self, locals)
+    
+    def on_exit(self, locals):
+        return self.current_state.on_exit(self, locals)
         
     def build_action_results(self):
         action_results = []
@@ -155,15 +213,15 @@ class ConversationStateMachine:
 
         self.root_state = create_state(state_data)
 
-    def find_state_by_path(self, path):
+    def find_state_by_path(self, path: str) -> Optional[ConversationState]:
         return self.state_map.get(path)
     
     def initialize_transitions(self, transition_data=None):
         self.transition_data = transition_data
-        self.state_map = {}
+        self.state_map: dict[str, ConversationState] = {}
 
-        def traverse_and_map_states(state):
-            self.state_map[state.get_hierarchy_path()] = state
+        def traverse_and_map_states(state: ConversationState):
+            self.state_map[state.get_hpath()] = state
             for child in state.children:
                 traverse_and_map_states(child)
 
@@ -196,15 +254,15 @@ class ConversationStateMachine:
         graph.node_attr['style'] = 'rounded'
         graph.edge_attr['fontname'] = 'Consolas'
 
-        def add_state_to_graph(state, parent_subgraph=None):
+        def add_state_to_graph(state: ConversationState, parent_subgraph: pgv.AGraph = None):
             if parent_subgraph is None:
                 subgraph = graph
             else:
-                subgraph = parent_subgraph.add_subgraph(name=f"cluster_{state.get_hierarchy_path()}")
+                subgraph = parent_subgraph.add_subgraph(name=f"cluster_{state.get_hpath()}")
                 subgraph.graph_attr['style'] = 'rounded'
 
             if not (parent_subgraph is None):
-                subgraph.add_node(state.get_hierarchy_path(), label=state.name)
+                subgraph.add_node(state.get_hpath(), label=state.name)
 
             for child in state.children:
                 add_state_to_graph(child, subgraph)
@@ -235,12 +293,12 @@ class ConversationStateMachine:
      
     def print_current_state(self):
         print(f"{self.PRINT_PREFIX} self.current_state: {self.current_state}")
-        print(f"{self.PRINT_PREFIX} self.current_state.get_hierarchy_path(): {self.current_state.get_hierarchy_path()}")
+        print(f"{self.PRINT_PREFIX} self.current_state.get_hpath(): {self.current_state.get_hpath()}")
 
-    def print_state_hierarchy(self, state=None, level=0):
+    def print_state_hierarchy(self, state: ConversationState = None, level=0):
         if state == None:
             state = self.root_state
 
-        print(self.PRINT_PREFIX + "  " * (level+1) + state.get_hierarchy_path())
+        print(self.PRINT_PREFIX + "  " * (level+1) + state.get_hpath())
         for child in state.children:
             self.print_state_hierarchy(child, level + 1)

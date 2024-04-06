@@ -3,34 +3,31 @@ import os
 import dotenv
 import json
 import re
+from pprint import pprint
+from copy import deepcopy
 
 import inspect
 
 from state_management import ConversationStateMachine
-
-from callbacks import exec_callbacks
+from parsing import *
+import callbacks
+from memory import Memory
 
 
 dotenv.load_dotenv()
 
 
+try:
+    TERM_WIDTH = os.get_terminal_size().columns
+    print(f"\n[main] TERM_WIDTH: {TERM_WIDTH}")
+except OSError:
+    TERM_WIDTH = 80
+    print(f"\n[main] TERM_WIDTH: {TERM_WIDTH}")
+
 
 CLI_STRS = {
     "init": "What would you like me to do? > "
 }
-
-def parse_response(message):
-    if message.content[0].type == "text":
-        try:
-            return json.loads(message.content[0].text)
-
-        except json.JSONDecodeError as e:
-            print("Not JSON")
-            return message.content[0].text
-
-    else:
-        print(f"[parse_message] message.content[0].type was not text: {message.content[0].type}")
-        return None
 
 
 
@@ -38,7 +35,8 @@ def main():
     client = anthropic.Anthropic(
         api_key=os.environ.get("ANTHROPIC_API_KEY"),
     )
-    
+
+    memory: Memory = Memory()
 
     with open(os.path.join(os.environ.get("INPUT_DIR"), "states.json")) as file:
         state_data = json.load(file)
@@ -46,38 +44,59 @@ def main():
     with open(os.path.join(os.environ.get("INPUT_DIR"), "transitions.json")) as file:
         transition_data = json.load(file)
 
-    with open(os.path.join(os.environ.get("INPUT_DIR"), "global_frmt.json")) as file:
-        global_frmt = json.load(file)
+    csm = ConversationStateMachine(state_data=state_data, transition_data=transition_data, init_state_path='Start')
+    csm.visualize()
 
-
-    csm = ConversationStateMachine(state_data=state_data, transition_data=transition_data, init_state_path='start')
-    csm.transition("selectready")
+    csm.transition("Selectready", locals=locals())
 
     task = input(CLI_STRS["init"])
 
-    global_frmt.update({"task": task})
+    memory.global_frmt.update({"task": task})
+
+    prev_response = {}
 
 
+    # TODO: Modify to support new Markdown parsing scheme
     i = 0
-    while csm.current_state.get_hierarchy_path() != "done":
-        print(f"\n[main] state {i}")
+    while csm.current_state.get_hpath() != "Done":
+        print("-"*16)
+        print(f"\n[main] state {i}\n")
         csm.print_current_state()
 
-        exec_callbacks(csm.current_state.get_hpath(), "before", locals=locals())
+        memory.load_state_prompts(csm.current_state.get_hpath())
 
-        csm.current_state.configure_llm_call(frmt_update=global_frmt)
-        response = csm.current_state.llm_call(client)
+        dynamic_frmt = csm.current_state.frmt.copy()
+        dynamic_frmt.update(prev_response)
+        dynamic_frmt.update(memory.persistence)
+        dynamic_frmt.update(memory.build_general_ctxt())
+
+        formatted_system = memory.get_formatted_system(dynamic_frmt=dynamic_frmt)
+        formatted_messages = memory.get_formatted_messages(dynamic_frmt=dynamic_frmt)
+
+        print(f"\nformatted_system:\n")
+        print(formatted_system)
+        print(f"\nformatted_messages:\n")
+        pprint(formatted_messages)
+        print()
+            
+        response = csm.current_state.llm_call(client, formatted_system, formatted_messages)
+
+        memory.add_msg_obj(response)
 
         parsed_response = parse_response(response)
-        print(f"parsed_response:\n{parsed_response}")
+        pprint(parsed_response, width=TERM_WIDTH)
 
-        # assumes each csm.transition() is called if an after callback is defined
-        had_after_callbacks = exec_callbacks(csm.current_state.get_hpath(), "after", locals=locals())
+        
+        if "action" in parsed_response:
+            csm.transition(parsed_response["action"]["_content"].lower().capitalize(), locals())
+        elif "code_block" in parsed_response:
+            csm.transition("Execute", locals())
+        elif "problems" in parsed_response:
+            csm.transition("Problemsidentified", locals())
 
-        # default transition 
-        if not had_after_callbacks and isinstance(parsed_response, dict):
-            if "action" in parsed_response:
-                csm.transition(parsed_response["action"].lower()).update_frmt(parsed_response)
+        prev_response = {
+            "previous_response": parsed_response,
+        }
         
         i += 1
 
