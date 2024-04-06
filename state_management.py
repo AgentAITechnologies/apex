@@ -24,7 +24,7 @@ class ConversationState:
 
         self.parent = parent
 
-        self.transitions = {}
+        self.transitions: dict[str, ConversationState] = {}
         self.children = []
 
         self.load_callback()
@@ -97,57 +97,15 @@ class ConversationState:
             return self.parent.get_hpath() + "_" + self.name
         else:
             return self.name
-        
-    def build_messages(self):
-        # TODO: REDO THIS ENTIRE APPROACH
-        # Load messages from memory.py, dynamically include frmt within memory.py
-        '''
-        self.formatted_messages = []
-
-        for message in self.messages:
-            new_msg_content = []
-
-            for content in message["content"]:
-                new_msg_content_text = content["text"].format(**self.frmt)
-
-                new_msg_content.append({
-                        "type": content["type"],
-                        "text": new_msg_content_text
-                })
-
-            self.formatted_messages.append({
-                "role":  message["role"],
-                "content": new_msg_content
-            })
-            '''
-    
-    def build_system(self):
-        # TODO: REDO THIS ENTIRE APPROACH
-        # Load system prompt from file, dynamically include persistence from other files
-
-        '''
-        with open(os.path.join(os.environ.get("INPUT_DIR"), os.environ.get("SYS_PRMPT_DIR"), self.get_hpath()+".md"), 'r') as f:
-            self.system = f.read()
-
-        frmt = {}
-
-        for key, value in self.frmt.items():
-            if isinstance(value, str):
-                frmt[key] = value
-            elif isinstance(value, dict):
-                frmt[key] = value["_content"]
-
-        self.formatted_system = self.system.format(**self.frmt)
-        '''
 
     def load_callback(self):
         callback_class_name = f"{self.get_hpath()}_Callback"
         callback_class = globals().get(callback_class_name)
         if callback_class:
-            self.callback = callback_class()
+            self.callback: Optional[StateCallback] = callback_class()
         else:
             print(f"[CSM] no callback found for state {self.get_hpath()}")
-            self.callback = None
+            self.callback: Optional[StateCallback] = None
 
     def on_enter(self, csm: ConversationStateMachine, locals):
         if self.callback:

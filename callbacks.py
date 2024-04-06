@@ -13,10 +13,10 @@ dotenv.load_dotenv()
 
 
 class StateCallback:
-    def on_enter(self, csm, locals):
+    def on_enter(self, csm, locals: dict):
         pass
 
-    def on_exit(self, csm, locals):
+    def on_exit(self, csm, locals: dict):
         pass
 
 
@@ -235,18 +235,7 @@ class Ready_SelectTool_Callback(StateCallback):
     def on_enter(self, csm, locals):
         print(f"Entering Ready_SelectTool")
         # Perform actions when entering Ready_SelectTool
-        if "FailureReflection" in csm.state_history[-1].get_hpath():
-            action_results = csm.build_action_results()
-            action_results_str = "You took these actions to accomplish the task:\n"
-            action_results_str += json.dumps(action_results, indent=4)
-
-            failure_fix_str = "Your last attempt didn't succeed, but you believe you are ready to try again."
-
-            csm.current_state.update_frmt({
-                "action_results_str": action_results_str,
-                "failure_fix_str": failure_fix_str
-            })
-
+        pass
 
     def on_exit(self, csm, locals):
         print(f"Exiting Ready_SelectTool")
@@ -328,10 +317,8 @@ class Ready_SelectDone_Callback(StateCallback):
     def on_enter(self, csm, locals):
         print(f"Entering Ready_SelectDone")
         # Perform actions when entering Ready_SelectDone
-
-        csm.current_state.update_frmt({"result": csm.state_history[-1].frmt["result"]})
-
-
+        pass
+        
     def on_exit(self, csm, locals):
         print(f"Exiting Ready_SelectDone")
         # Perform actions when exiting Ready_SelectDone
@@ -352,38 +339,12 @@ class Failure_IdentifyProblems_Callback(StateCallback):
     def on_enter(self, csm, locals):
         print(f"Entering Failure_IdentifyProblems")
         # Perform actions when entering Failure_IdentifyProblems
-        '''
-        action_results = csm.build_action_results()
-        action_results_str = "You took these actions to accomplish the task:\n"
-        action_results_str += json.dumps(action_results, indent=4)
-
-        failure_reason = csm.current_state.frmt["reason"]
-
-        frmt_update = {
-            "action_results_str": action_results_str,
-            "failure_reason": failure_reason
-        }
-
-        csm.current_state.update_frmt(frmt_update=frmt_update)
-        '''
-
+        pass
 
     def on_exit(self, csm, locals):
         print(f"Exiting Failure_IdentifyProblems")
         # Perform actions when exiting Failure_IdentifyProblems
-
-        parsed_response = locals.get("parsed_response")
-
-        prev_frmt = csm.current_state.frmt
-
-        update_frmt = prev_frmt.copy()
-        update_frmt.update(parsed_response)
-
-        del update_frmt["action"]
-
-        followup_triggers = [("problemsidentified", update_frmt)]
-        return followup_triggers
-
+        pass
 
 class Failure_SelectReady_Callback(StateCallback):
     def on_enter(self, csm, locals):
@@ -412,10 +373,6 @@ class LogDone_Callback(StateCallback):
         super().__init__()
         self.prepped = False
 
-    def on_enter(self, csm, locals):
-        print(f"Entering LogDone")
-        # Perform actions when entering Done
-
     def prep_log(self):
         # Read the file's content
         with open(os.path.join(os.environ.get("INPUT_DIR"), os.environ.get("PERSISTENCE_DIR"), os.environ.get("LOG_FILE")), 'r') as file:
@@ -429,6 +386,11 @@ class LogDone_Callback(StateCallback):
             file.writelines(filtered_lines)
 
         return True
+
+    def on_enter(self, csm, locals):
+        print(f"Entering LogDone")
+        # Perform actions when entering Done
+        pass
 
     def on_exit(self, csm, locals):
         print(f"Exiting LogDone")

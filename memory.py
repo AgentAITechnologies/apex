@@ -91,7 +91,9 @@ working directory: {os.getcwd()}"""
 
             if isinstance(message["content"], dict):
 
-                if len(self.results) > 0 and "{result}" in message["content"][0]["text"]:
+                # Do we expect a result here? 
+                # If so, fill it in with the appropriate instance and increment the result pointer for the next result
+                if "{result}" in message["content"][0]["text"]:
                     frmt.update({"result": self.results[result_ptr]})
                     result_ptr += 1
 
@@ -111,10 +113,14 @@ working directory: {os.getcwd()}"""
                 })
             
             else:
-                if len(self.results) > 0 and "{result}" in message["content"]:
+
+                # Do we expect a result here? 
+                # If so, fill it in with the appropriate instance and increment the result pointer for the next result
+                if "{result}" in message["content"]:
                     frmt.update({"result": self.results[result_ptr]})
                     result_ptr += 1
 
+                # Only format the message if it does not contain a code block
                 if not ("```" in message["content"]):
                     formatted_messages.append({
                         "role":  message["role"],
@@ -131,5 +137,8 @@ working directory: {os.getcwd()}"""
     def get_formatted_system(self, dynamic_frmt) -> str:
         frmt = self.global_frmt.copy()
         frmt.update(dynamic_frmt)
+        
+        if "state_log" in frmt:
+            frmt["state_log"] = frmt["state_log"].strip()
 
         return self.sys_prompt_history[-1].format(**frmt)
