@@ -20,7 +20,7 @@ class Memory:
         self.global_frmt: dict = self.files2dict(os.path.join(os.environ.get("INPUT_DIR"), os.environ.get("GLOBAL_FRMT_DIR")), ".md")
         self.persistence: dict = self.files2dict(os.path.join(os.environ.get("INPUT_DIR"), os.environ.get("PERSISTENCE_DIR")), ".md")
 
-        self.results = []
+        self.results: dict[int, dict] = {}
 
     def build_general_ctxt(self) -> dict:
         ctxt_str = f"""Here is some general information about your system and your environment:
@@ -74,28 +74,26 @@ working directory: {os.getcwd()}"""
         }
         self.conversation_history.append(msg_item)
 
+    def add_result(self, result: dict):
+        self.results[len(self.conversation_history)] = result
+
     def get_formatted_messages(self, dynamic_frmt={}) -> list[dict]:
         formatted_messages = []
 
-        # assumes that every time a result is generated, it is passed via dynamic_frmt
+        # Should never happen
         if "result" in dynamic_frmt:
-            self.results.append(dynamic_frmt["result"])
+            print(f"[memory] Unexpected result in dynamic_frmt: {dynamic_frmt['result']}")
             del dynamic_frmt["result"]
 
         frmt = self.global_frmt.copy()
         frmt.update(dynamic_frmt)
-
-        result_ptr = 0
         
-        for message in self.conversation_history:
+        for i, message in enumerate(self.conversation_history):
 
             if isinstance(message["content"], dict):
 
-                # Do we expect a result here? 
-                # If so, fill it in with the appropriate instance and increment the result pointer for the next result
                 if "{result}" in message["content"][0]["text"]:
-                    frmt.update({"result": self.results[result_ptr]})
-                    result_ptr += 1
+                    frmt.update({"result": self.results[i]})
 
                 new_msg_content = []
 
@@ -113,12 +111,8 @@ working directory: {os.getcwd()}"""
                 })
             
             else:
-
-                # Do we expect a result here? 
-                # If so, fill it in with the appropriate instance and increment the result pointer for the next result
                 if "{result}" in message["content"]:
-                    frmt.update({"result": self.results[result_ptr]})
-                    result_ptr += 1
+                    frmt.update({"result": self.results[i]})
 
                 # Only format the message if it does not contain a code block
                 if not ("```" in message["content"]):

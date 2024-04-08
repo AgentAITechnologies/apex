@@ -64,10 +64,7 @@ def main():
         dynamic_frmt.update(prev_response)
         dynamic_frmt.update(memory.persistence)
         dynamic_frmt.update(memory.build_general_ctxt())
-
-        if "result" in csm.state_history[-1].frmt:
-            dynamic_frmt.update({"result": csm.state_history[-1].frmt["result"]})
-
+        
         formatted_system = memory.get_formatted_system(dynamic_frmt=dynamic_frmt)
         formatted_messages = memory.get_formatted_messages(dynamic_frmt=dynamic_frmt)
 

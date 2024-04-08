@@ -68,6 +68,8 @@
                                 }
                         ]
                     },
+
+                    {"name": "SelectDone"},
                     
                     {"name": "SelectReady"}
                 ]

@@ -6,10 +6,13 @@ import datetime
 
 import traceback
 
-from execution_management import exec_python
+from execution_management import exec_python, capture_python_output
 
 
 dotenv.load_dotenv()
+
+
+
 
 
 class StateCallback:
@@ -119,7 +122,10 @@ class Notready_SelectGetSetState_GetState_SelectTool_ComposePython_Callback(Stat
     def on_exit(self, csm, locals):
         print(f"Exiting Notready_SelectGetSetState_GetState_SelectTool_ComposePython")
         # Perform actions when exiting Notready_SelectGetSetState_GetState_SelectTool_ComposePython
-        pass
+
+        # run and capture output
+        # store in csm.current_state.frmt
+        capture_python_output(csm, locals)
 
 class Notready_SelectGetSetState_GetState_SelectTool_ComposePowershell_Callback(StateCallback):
     def on_enter(self, csm, locals):
@@ -185,7 +191,7 @@ class Notready_SelectGetSetState_SetState_SelectTool_ComposePython_Callback(Stat
     def on_exit(self, csm, locals):
         print(f"Exiting Notready_SelectGetSetState_SetState_SelectTool_ComposePython")
         # Perform actions when exiting Notready_SelectGetSetState_SetState_SelectTool_ComposePython
-        pass
+        capture_python_output(csm, locals)
 
 class Notready_SelectGetSetState_SetState_SelectTool_ComposePowershell_Callback(StateCallback):
     def on_enter(self, csm, locals):
@@ -263,32 +269,9 @@ class Ready_SelectTool_ComposePython_Callback(StateCallback):
         print(f"Exiting Ready_SelectTool_ComposePython")
         # Perform actions when exiting Ready_SelectTool_ComposePython
 
-        parsed_response = locals.get("parsed_response")
-        
-        language_name = parsed_response["code_block"]["language_name"]
-        code = parsed_response["code_block"]["code"]
-
-        stdout, stderr = None, None
-
-        if language_name == "python":
-            try:
-                stdout, stderr = exec_python(code)
-            except Exception as e:
-                error_message = traceback.format_exc()
-                print(f"[main] Python script execution error for task \"{locals.get('task')}\":\n{error_message}")
-                stderr = error_message
-
-            print(f"[main] Python script execution results for task \"{locals.get('task')}\":\nstdout:\n{stdout}\nstderr:\n{stderr}")
-
-        frmt_update = {
-            "result": {
-                "action": "execute python",
-                "code": code,
-                "output": {"stdout": stdout, "stderr": stderr}
-            }
-        }
-
-        csm.current_state.update_frmt(frmt_update)
+        # run and capture output
+        # store in csm.current_state.frmt
+        capture_python_output(csm, locals)
 
 
 class Ready_SelectTool_ComposePowershell_Callback(StateCallback):
@@ -413,5 +396,17 @@ class Done_Callback(StateCallback):
 
     def on_exit(self, csm, locals):
         print(f"Exiting Done")
+        # Perform actions when exiting Done
+        pass
+
+
+class Notready_SelectDone_Callback(StateCallback):
+    def on_enter(self, csm, locals):
+        print(f"Entering Notready_SelectDone")
+        # Perform actions when entering Done
+        pass
+
+    def on_exit(self, csm, locals):
+        print(f"Exiting Notready_SelectDone")
         # Perform actions when exiting Done
         pass

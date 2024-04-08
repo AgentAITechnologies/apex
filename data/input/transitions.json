@@ -15,7 +15,7 @@
     { "trigger": "Powershell", "source": "Notready_SelectGetSetState_GetState_SelectTool", "dest": "Notready_SelectGetSetState_GetState_SelectTool_ComposePowershell" },
     { "trigger": "Screenshot", "source": "Notready_SelectGetSetState_GetState_SelectTool", "dest": "Notready_SelectGetSetState_GetState_SelectTool_ComposeScreenshot" },
 
-    { "trigger": "Execute", "source": ["Notready_SelectGetSetState_GetState_SelectTool_ComposeQuestion", "Notready_SelectGetSetState_GetState_SelectTool_ComposePython", "Notready_SelectGetSetState_GetState_SelectTool_ComposePowershell", "Notready_SelectGetSetState_GetState_SelectTool_ComposeScreenshot"], "dest": "Notready_SelectReady" },
+    { "trigger": "Execute", "source": ["Notready_SelectGetSetState_GetState_SelectTool_ComposeQuestion", "Notready_SelectGetSetState_GetState_SelectTool_ComposePython", "Notready_SelectGetSetState_GetState_SelectTool_ComposePowershell", "Notready_SelectGetSetState_GetState_SelectTool_ComposeScreenshot"], "dest": "Notready_SelectDone" },
 
 
     { "trigger": "Message", "source": "Notready_SelectGetSetState_SetState_SelectTool", "dest": "Notready_SelectGetSetState_SetState_SelectTool_ComposeMessage" },
@@ -23,7 +23,10 @@
     { "trigger": "Powershell", "source": "Notready_SelectGetSetState_SetState_SelectTool", "dest": "Notready_SelectGetSetState_SetState_SelectTool_ComposePowershell" },
     { "trigger": "Emulation", "source": "Notready_SelectGetSetState_SetState_SelectTool", "dest": "Notready_SelectGetSetState_SetState_SelectTool_InputEmulation" },
 
-    { "trigger": "Execute", "source": ["Notready_SelectGetSetState_SetState_SelectTool_ComposeMessage", "Notready_SelectGetSetState_SetState_SelectTool_ComposePython", "Notready_SelectGetSetState_SetState_SelectTool_ComposePowershell", "Notready_SelectGetSetState_SetState_SelectTool_InputEmulation"], "dest": "Notready_SelectReady" },
+    { "trigger": "Execute", "source": ["Notready_SelectGetSetState_SetState_SelectTool_ComposeMessage", "Notready_SelectGetSetState_SetState_SelectTool_ComposePython", "Notready_SelectGetSetState_SetState_SelectTool_ComposePowershell", "Notready_SelectGetSetState_SetState_SelectTool_InputEmulation"], "dest": "Notready_SelectDone" },
+
+    { "trigger": "Success", "source": "Notready_SelectDone", "dest": "Notready_SelectReady" },
+    { "trigger": "Failure", "source": "Notready_SelectDone", "dest": "Failure_IdentifyProblems" },
 
 
     { "trigger": "Message", "source": "Ready_SelectTool", "dest": "Ready_SelectTool_ComposeMessage" },
