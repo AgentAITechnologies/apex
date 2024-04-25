@@ -5,6 +5,7 @@ import json
 
 from rich import print
 
+from agents.agent_manager.agent_manager import AgentManager
 from agents.ui.ui import UI
 
 
@@ -27,7 +28,9 @@ def main():
         api_key=os.environ.get("ANTHROPIC_API_KEY"),
     )
 
-    ui: UI = UI(term_width=TERM_WIDTH, prefix=PRINT_PREFIX)
+    agent_manager = AgentManager(prefix=PRINT_PREFIX)
+
+    ui = UI(term_width=TERM_WIDTH, prefix=PRINT_PREFIX)
     ui.run(client)
 
 

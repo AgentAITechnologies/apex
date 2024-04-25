@@ -72,6 +72,12 @@ class Memory:
         self.load_user_prompt(state_path, dynamic_user_metaprompt)
         self.load_assistant_prefill()
 
+    def store_llm_response(self, result: str):
+        if self.conversation_history[-1]["role"] == "assistant":
+            self.conversation_history[-1]["content"] = result
+        else:
+            print(f"[red][bold]{self.PRINT_PREFIX} Unexpected role at end of conversation: {self.conversation_history[-1]['role']}[/bold][/red]")
+
     def add_msg(self, msg: str, role: str):
         msg_item = {
             "role": role,

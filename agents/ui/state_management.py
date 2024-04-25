@@ -79,7 +79,7 @@ class ConversationState:
         callback_class_name = f"{self.get_hpath()}_Callback"
         callback_class = globals().get(callback_class_name)
         if callback_class:
-            self.callback: Optional[StateCallback] = callback_class()
+            self.callback: Optional[StateCallback] = callback_class(self.PRINT_PREFIX)
         else:
             print(f"[red bold] {self.PRINT_PREFIX} no callback found for state {self.get_hpath()}[/red bold]")
             self.callback: Optional[StateCallback] = None
@@ -110,27 +110,12 @@ class ConversationStateMachine:
         
         self.initialize_conversation_states(state_data)
         self.initialize_transitions(transition_data)
+
         self.current_state: ConversationState = self.state_map[init_state_path]
+        self.state_history: list[ConversationState] = [self.current_state]
 
     def transition(self, trigger: str, locals) -> Optional[ConversationState]:
-        def extract_trigger(trigger_text: str, transitions: dict[str, ConversationState]) -> Optional[ConversationState]:
-            def extract_trigger_fromstr(trigger_text: str, test_trigger: str) -> Optional[str]:
-                if trigger_text[:len(test_trigger)] == test_trigger:
-                    return test_trigger
-                else:
-                    return None
-
-            for test_trigger, value in transitions.items():
-                extracted_trigger = extract_trigger_fromstr(trigger_text, test_trigger)
-
-                if extracted_trigger:
-                    return extracted_trigger
-                
-            return None
-
-        trigger = extract_trigger(trigger, self.current_state.transitions)
-
-        if trigger:
+        if trigger and trigger in self.current_state.transitions:
             # call exit callback
             self.current_state.on_exit(self, locals)
             # update state history

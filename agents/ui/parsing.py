@@ -3,19 +3,29 @@ import re
 import xml.etree.ElementTree as ET
 from typing import Optional
 
-def parse_xml(xml_string: str) -> dict[str, Optional[str]]:
+def parse_xml(xml_string: str) -> dict:
     xml_string = xml_string.strip()
     xml_string = f"<root>{xml_string}</root>"
     root = ET.fromstring(xml_string)
-    result = {}
     
-    for child in root:
-        if child.text is None or child.text.strip() == "None":
-            result[child.tag] = None
+    def parse_element(element: ET.Element) -> Optional[dict]:
+        if len(element) == 0:
+            if element.text is None:
+                return None
+            else:
+                return element.text.strip()
         else:
-            result[child.tag] = child.text.strip()
+            result = {}
+            for child in element:
+                child_result = parse_element(child)
+                if child_result is not None:
+                    if child_result != "None":
+                        result[child.tag] = child_result
+                    else:
+                        result[child.tag] = None
+            return result
     
-    return result
+    return parse_element(root)
 
 
 def extract_language_and_code(markdown_string):

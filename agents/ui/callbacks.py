@@ -6,11 +6,18 @@ import datetime
 
 import traceback
 
+from rich import print
+
 
 dotenv.load_dotenv()
 
 
 class StateCallback:
+    PRINT_PREFIX = "[bold][Callback][/bold]"
+
+    def __init__(self, prefix):
+        prefix = f"{prefix} {self.PRINT_PREFIX}"
+
     def on_enter(self, csm, locals: dict):
         pass
 
@@ -23,44 +30,44 @@ class StateCallback:
 
 class root_Callback(StateCallback):
     def on_enter(self, csm, locals):
-        print(f"Entering root")
+        print(f"{self.PRINT_PREFIX} Entering root")
         # Perform actions when entering root
         pass
 
     def on_exit(self, csm, locals):
-        print(f"Exiting root")
+        print(f"{self.PRINT_PREFIX} Exiting root")
         # Perform actions when exiting root
         pass
 
 class PrintUIMessage_Callback(StateCallback):
     def on_enter(self, csm, locals):
-        print(f"Entering PrintUIMessage")
+        print(f"{self.PRINT_PREFIX} Entering PrintUIMessage")
         # Perform actions when entering PrintUIMessage
         pass
 
     def on_exit(self, csm, locals):
-        print(f"Exiting PrintUIMessage")
+        print(f"{self.PRINT_PREFIX} Exiting PrintUIMessage")
         # Perform actions when exiting PrintUIMessage
         pass
 
 class AssignTask_Callback(StateCallback):
     def on_enter(self, csm, locals):
-        print(f"Entering AssignTask")
+        print(f"{self.PRINT_PREFIX} Entering AssignTask")
         # Perform actions when entering AssignTask
         pass
 
     def on_exit(self, csm, locals):
-        print(f"Exiting AssignTask")
+        print(f"{self.PRINT_PREFIX} Exiting AssignTask")
         # Perform actions when exiting AssignTask
         pass
 
 class Exit_Callback(StateCallback):
     def on_enter(self, csm, locals):
-        print(f"Entering Exit")
+        print(f"{self.PRINT_PREFIX} Entering Exit")
         # Perform actions when entering Exit
         pass
 
     def on_exit(self, csm, locals):
-        print(f"Exiting Exit")
+        print(f"{self.PRINT_PREFIX} Exiting Exit")
         # Perform actions when exiting Exit
         pass
