@@ -2,9 +2,11 @@
 __pycache__/
 *.pyc
 
+# VSCode
+.vscode/
+
 # mypy
 .mypy_cache/
-
 
 # dot-env
 *.env
@@ -14,3 +16,4 @@ prototyping/
 
 # generated output
 data/output/
+agents/ui/data/output/

@@ -1,16 +1,24 @@
 from __future__ import annotations
 
-from copy import deepcopy
-import pygraphviz as pgv
 import os
+import sys
 
+from copy import deepcopy
 from typing import Optional
 
-from callbacks import *
+import pygraphviz as pgv
+from rich import print
 
+from agents.ui.callbacks import *
 
+# %%
 class ConversationState:
-    def __init__(self, name=None, parent: Optional[ConversationState] = None, system="", messages=[], frmt={}):
+    PRINT_PREFIX = "[bold][CS][/bold]"
+
+    def __init__(self, name=None, parent: Optional[ConversationState] = None, system="", messages=[], frmt={}, prefix=""):
+        if prefix:
+            self.PRINT_PREFIX = f"{prefix} {self.PRINT_PREFIX}"
+        
         self.name = name
 
         self.system = system
@@ -29,56 +37,17 @@ class ConversationState:
 
         self.load_callback()
 
-    def configure_llm_call(self, frmt_update={}):
-        self.update_frmt(frmt_update)
-
-        self.build_system()
-        self.build_messages()
-
-        return self.formatted_system, self.formatted_messages
-
-    def update_frmt(self, frmt_update, recursive=False):
-        self.frmt.update(frmt_update)
-        
-        def recursive_format(d):
-            for key, value in d.items():
-                if isinstance(value, dict):
-                    recursive_format(value)
-                elif isinstance(value, str):
-                    try:
-                        d[key] = value.format(**self.frmt)
-                    except KeyError:
-                        d[key] = value
-                        # print(f"[state_mgmt] KeyError: {key}\nassigned to\n\"{value}\"\nwithout recursion")
-        
-        if recursive:
-            recursive_format(self.frmt)
-    
-    def llm_call(self, client, formatted_system, formatted_messages):
-        self.formatted_system = formatted_system
-        self.formatted_messages = formatted_messages
-
-        message = client.messages.create(
-            model=os.environ.get("MODEL"),
-            max_tokens=4000,
-            temperature=0,
-            system=formatted_system,
-            messages=formatted_messages
-        )
-        
-        return message
-
     def add_message(self, message):
         self.messages.append(message)
 
     def add_transition(self, trigger, next_state):
         self.transitions[trigger] = next_state
 
-    def add_child(self, child_state: ConversationState):
+    def add_child(self, child_state):
         self.children.append(child_state)
         child_state.parent = self
 
-    def get_next_state(self, response):
+    def get_next_state(self, response) -> Optional[ConversationState]:
         if response in self.transitions:
             return self.transitions[response]
         elif self.parent:
@@ -86,27 +55,18 @@ class ConversationState:
         else:
             return None
 
-    def get_root(self) -> ConversationState:
+    def get_root(self):
         if self.parent:
             return self.parent.get_root()
         else:
             return self
 
-    def get_hpath(self) -> Optional[str]:
-        if self.parent and self.parent.name != "Root":
+    def get_hpath(self) -> str:
+        if self.parent and self.parent.name != "root":
             return self.parent.get_hpath() + "_" + self.name
         else:
             return self.name
-
-    def load_callback(self):
-        callback_class_name = f"{self.get_hpath()}_Callback"
-        callback_class = globals().get(callback_class_name)
-        if callback_class:
-            self.callback: Optional[StateCallback] = callback_class()
-        else:
-            print(f"[CSM] no callback found for state {self.get_hpath()}")
-            self.callback: Optional[StateCallback] = None
-
+        
     def on_enter(self, csm: ConversationStateMachine, locals):
         if self.callback:
             self.callback.on_enter(csm, locals)
@@ -115,45 +75,76 @@ class ConversationState:
         if self.callback:
             self.callback.on_exit(csm, locals)
 
+    def load_callback(self):
+        callback_class_name = f"{self.get_hpath()}_Callback"
+        callback_class = globals().get(callback_class_name)
+        if callback_class:
+            self.callback: Optional[StateCallback] = callback_class()
+        else:
+            print(f"[red bold] {self.PRINT_PREFIX} no callback found for state {self.get_hpath()}[/red bold]")
+            self.callback: Optional[StateCallback] = None
+            # sys.exit(69)
 
+    def llm_call(self, client, formatted_system, formatted_messages, stop_sequences):
+        self.formatted_system = formatted_system
+        self.formatted_messages = formatted_messages
+
+        message = client.messages.create(
+            model=os.environ.get("MODEL"),
+            max_tokens=4000,
+            temperature=0,
+            system=formatted_system,
+            messages=formatted_messages,
+            stop_sequences=stop_sequences
+        )
+        
+        return message
+
+# %%
 class ConversationStateMachine:
-    PRINT_PREFIX = "[CSM]"
+    PRINT_PREFIX = "[bold][CSM][/bold]"
 
-    def __init__(self, state_data=None, transition_data=None, init_state_path=None):
+    def __init__(self, state_data=None, transition_data=None, init_state_path=None, prefix=None):
+        if prefix:
+            self.PRINT_PREFIX = f"{prefix} {self.PRINT_PREFIX}"
+        
         self.initialize_conversation_states(state_data)
         self.initialize_transitions(transition_data)
-
         self.current_state: ConversationState = self.state_map[init_state_path]
-        self.state_history: list[ConversationState] = []
-    
-    def transition(self, trigger, locals) -> Optional[ConversationState]:
-        if trigger in self.current_state.transitions:
+
+    def transition(self, trigger: str, locals) -> Optional[ConversationState]:
+        def extract_trigger(trigger_text: str, transitions: dict[str, ConversationState]) -> Optional[ConversationState]:
+            def extract_trigger_fromstr(trigger_text: str, test_trigger: str) -> Optional[str]:
+                if trigger_text[:len(test_trigger)] == test_trigger:
+                    return test_trigger
+                else:
+                    return None
+
+            for test_trigger, value in transitions.items():
+                extracted_trigger = extract_trigger_fromstr(trigger_text, test_trigger)
+
+                if extracted_trigger:
+                    return extracted_trigger
+                
+            return None
+
+        trigger = extract_trigger(trigger, self.current_state.transitions)
+
+        if trigger:
             # call exit callback
             self.current_state.on_exit(self, locals)
             # update state history
             self.state_history.append(deepcopy(self.current_state))
-            # update current state
+            # update csm's current state
             self.current_state = self.current_state.transitions[trigger]
             # call enter callback
             self.current_state.on_enter(self, locals)
             # return next state
             return self.current_state
         else:
-            print(f"{self.PRINT_PREFIX} invalid trigger '{trigger}' for state {self.current_state.get_hpath()}")
+            print(f"[red]{self.PRINT_PREFIX} invalid trigger '{trigger}' for state {self.current_state.get_hpath()}[/red]")
+            sys.exit(2)
             return None
-        
-    def on_enter(self, locals):
-        return self.current_state.on_enter(self, locals)
-    
-    def on_exit(self, locals):
-        return self.current_state.on_exit(self, locals)
-        
-    def build_action_results(self):
-        action_results = []
-        for state in self.state_history+[self.current_state]:
-            if "result" in state.frmt:
-                action_results.append(state.frmt["result"])
-        return action_results
 
     def initialize_conversation_states(self, state_data):
         def create_state(state_data, parent=None):
@@ -161,7 +152,7 @@ class ConversationStateMachine:
                                       parent=parent,
                                       system=state_data.get("system", ""),
                                       messages=state_data.get("messages", []),
-                                      frmt = state_data.get("frmt", {}))
+                                      prefix=self.PRINT_PREFIX)
 
             for child_data in state_data.get("children", []):
                 child_state = create_state(child_data, parent=state)
@@ -172,13 +163,13 @@ class ConversationStateMachine:
         self.root_state = create_state(state_data)
 
     def find_state_by_path(self, path: str) -> Optional[ConversationState]:
-        return self.state_map.get(path)
+            return self.state_map.get(path)
     
     def initialize_transitions(self, transition_data=None):
         self.transition_data = transition_data
         self.state_map: dict[str, ConversationState] = {}
 
-        def traverse_and_map_states(state: ConversationState):
+        def traverse_and_map_states(state):
             self.state_map[state.get_hpath()] = state
             for child in state.children:
                 traverse_and_map_states(child)
@@ -201,7 +192,7 @@ class ConversationStateMachine:
                 if source_state and dest_state:
                     source_state.add_transition(trigger, dest_state)
                 else:
-                    print(f"{self.PRINT_PREFIX} Warning: Invalid transition - Source: {source_path}, Destination: {dest_path}")
+                    print(f"[red]{self.PRINT_PREFIX} Warning: Invalid transition - Source: {source_path}, Destination: {dest_path}[/red]")
 
     def visualize(self):
         graph = pgv.AGraph(directed=True)
@@ -212,7 +203,7 @@ class ConversationStateMachine:
         graph.node_attr['style'] = 'rounded'
         graph.edge_attr['fontname'] = 'Consolas'
 
-        def add_state_to_graph(state: ConversationState, parent_subgraph: pgv.AGraph = None):
+        def add_state_to_graph(state, parent_subgraph=None):
             if parent_subgraph is None:
                 subgraph = graph
             else:
@@ -244,19 +235,19 @@ class ConversationStateMachine:
 
         graph.layout(prog='dot')
         
-        if not os.path.exists(os.environ.get("OUTPUT_DIR")):
-            os.makedirs(os.environ.get("OUTPUT_DIR"))
+        if not os.path.exists(os.path.join(os.environ.get("UI_DIR"), os.environ.get("OUTPUT_DIR"))):
+            os.makedirs(os.path.join(os.environ.get("UI_DIR"), os.environ.get("OUTPUT_DIR")))
             
-        graph.draw(os.path.join(os.environ.get("OUTPUT_DIR"), 'state_diagram.png'))
+        graph.draw(os.path.join(os.environ.get("UI_DIR"), os.environ.get("OUTPUT_DIR"), 'state_diagram.png'))
      
     def print_current_state(self):
-        print(f"{self.PRINT_PREFIX} self.current_state: {self.current_state}")
-        print(f"{self.PRINT_PREFIX} self.current_state.get_hpath(): {self.current_state.get_hpath()}")
+        print(f"{self.PRINT_PREFIX} self.current_state: [yellow]{self.current_state}[/yellow]")
+        print(f"{self.PRINT_PREFIX} self.current_state.get_hpath(): [yellow]{self.current_state.get_hpath()}[/yellow]")
 
-    def print_state_hierarchy(self, state: ConversationState = None, level=0):
+    def print_state_hierarchy(self, state=None, level=0):
         if state == None:
             state = self.root_state
 
-        print(self.PRINT_PREFIX + "  " * (level+1) + state.get_hpath())
+        print(self.PRINT_PREFIX + "  " * (level+1) + "[yellow]" + state.get_hpath() + "[/yellow]")
         for child in state.children:
             self.print_state_hierarchy(child, level + 1)

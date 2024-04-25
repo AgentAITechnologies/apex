@@ -1,0 +1,17 @@
+{
+    "name": "root",
+
+    "children": [
+            {
+                "name": "PrintUIMessage"
+            },
+
+            {
+                "name": "AssignTask"            
+            },
+
+            {
+                "name": "Exit"
+            }
+        ]
+}

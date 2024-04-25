@@ -1,0 +1,11 @@
+[
+
+    { "trigger": "actionNone", "source": "PrintUIMessage", "dest": "PrintUIMessage" },
+    
+    { "trigger": "actionNotNone", "source": "PrintUIMessage", "dest": "AssignTask" },
+
+    { "trigger": "epsilon", "source": "AssignTask", "dest": "PrintUIMessage" },
+
+    { "trigger": "Exit", "source": "AssignTask", "dest": "Exit" }
+
+]
