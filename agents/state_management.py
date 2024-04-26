@@ -10,6 +10,7 @@ import pygraphviz as pgv
 from rich import print
 
 from agents.ui.callbacks import *
+from agents.agent_manager.callbacks import *
 
 # %%
 class ConversationState:
@@ -28,7 +29,7 @@ class ConversationState:
         self.formatted_system = None
         self.formatted_messages = None
 
-        self.result = None
+        self.action: Optional[dict] = None
 
         self.parent = parent
 
@@ -81,7 +82,7 @@ class ConversationState:
         if callback_class:
             self.callback: Optional[StateCallback] = callback_class(self.PRINT_PREFIX)
         else:
-            print(f"[red bold] {self.PRINT_PREFIX} no callback found for state {self.get_hpath()}[/red bold]")
+            print(f"[red bold]{self.PRINT_PREFIX} no callback found for state {self.get_hpath()}[/red bold]")
             self.callback: Optional[StateCallback] = None
             # sys.exit(69)
 
@@ -104,7 +105,9 @@ class ConversationState:
 class ConversationStateMachine:
     PRINT_PREFIX = "[bold][CSM][/bold]"
 
-    def __init__(self, state_data=None, transition_data=None, init_state_path=None, prefix=None):
+    def __init__(self, state_data=None, transition_data=None, init_state_path=None, prefix=None, owner_name=""):
+        self.owner_name = owner_name
+
         if prefix:
             self.PRINT_PREFIX = f"{prefix} {self.PRINT_PREFIX}"
         
@@ -113,6 +116,10 @@ class ConversationStateMachine:
 
         self.current_state: ConversationState = self.state_map[init_state_path]
         self.state_history: list[ConversationState] = [self.current_state]
+
+        self.print_state_hierarchy()
+        self.visualize(owner_name)
+        self.print_current_state()
 
     def transition(self, trigger: str, locals) -> Optional[ConversationState]:
         if trigger and trigger in self.current_state.transitions:
@@ -127,7 +134,7 @@ class ConversationStateMachine:
             # return next state
             return self.current_state
         else:
-            print(f"[red]{self.PRINT_PREFIX} invalid trigger '{trigger}' for state {self.current_state.get_hpath()}[/red]")
+            print(f"[red][bold]{self.PRINT_PREFIX} invalid trigger '{trigger}' for state {self.current_state.get_hpath()}[/bold][/red]")
             sys.exit(2)
             return None
 
@@ -179,7 +186,7 @@ class ConversationStateMachine:
                 else:
                     print(f"[red]{self.PRINT_PREFIX} Warning: Invalid transition - Source: {source_path}, Destination: {dest_path}[/red]")
 
-    def visualize(self):
+    def visualize(self, filename):
         graph = pgv.AGraph(directed=True)
 
         graph.graph_attr['fontname'] = 'Consolas'
@@ -220,10 +227,10 @@ class ConversationStateMachine:
 
         graph.layout(prog='dot')
         
-        if not os.path.exists(os.path.join(os.environ.get("UI_DIR"), os.environ.get("OUTPUT_DIR"))):
-            os.makedirs(os.path.join(os.environ.get("UI_DIR"), os.environ.get("OUTPUT_DIR")))
+        if not os.path.exists(os.path.join(os.environ.get("OUTPUT_DIR"))):
+            os.makedirs(os.path.join(os.environ.get("OUTPUT_DIR")))
             
-        graph.draw(os.path.join(os.environ.get("UI_DIR"), os.environ.get("OUTPUT_DIR"), 'state_diagram.png'))
+        graph.draw(os.path.join(os.environ.get("OUTPUT_DIR"), f'state_diagram_{filename}.png'))
      
     def print_current_state(self):
         print(f"{self.PRINT_PREFIX} self.current_state: [yellow]{self.current_state}[/yellow]")

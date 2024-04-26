@@ -16,13 +16,14 @@ PRINT_PREFIX = "[bold][MAIN][/bold]"
 
 
 def main():
-    
+    print()
+
     try:
         TERM_WIDTH = os.get_terminal_size().columns
-        print(f"\n{PRINT_PREFIX} TERM_WIDTH: {TERM_WIDTH}")
+        print(f"{PRINT_PREFIX} TERM_WIDTH: {TERM_WIDTH}")
     except OSError:
         TERM_WIDTH = os.environ.get("HEADLESS_TERM_WIDTH")
-        print(f"\n{PRINT_PREFIX} TERM_WIDTH (headless): {TERM_WIDTH}")
+        print(f"{PRINT_PREFIX} TERM_WIDTH (headless): {TERM_WIDTH}")
 
     client = anthropic.Anthropic(
         api_key=os.environ.get("ANTHROPIC_API_KEY"),

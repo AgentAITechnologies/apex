@@ -1,0 +1,7 @@
+[
+
+    { "trigger": "routeAction", "source": "AwaitIPC", "dest": "RouteAction" },
+    
+    { "trigger": "epsilon", "source": "RouteAction", "dest": "AwaitIPC" }    
+
+]

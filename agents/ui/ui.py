@@ -7,14 +7,13 @@ import os
 
 from typing import Optional
 
-from pprint import pprint
 from rich import print
 
 from agents.agent import Agent
-from agents.ui.state_management import ConversationStateMachine
+from agents.state_management import ConversationStateMachine
 from agents.ui.memory import Memory
 from agents.agent_manager.agent_manager import AgentManager
-from agents.ui.parsing import parse_xml
+from agents.parsing import parse_xml
 
 
 class UI(Agent):
@@ -29,15 +28,11 @@ class UI(Agent):
             transition_data = json.load(file)
             print(f"{self.PRINT_PREFIX} loaded transition_data")
 
-        self.csm = ConversationStateMachine(state_data=state_data, transition_data=transition_data, init_state_path='PrintUIMessage', prefix=self.PRINT_PREFIX)
-
-        self.csm.print_state_hierarchy()
-        self.csm.visualize()
-        self.csm.print_current_state()
+        self.csm = ConversationStateMachine(state_data=state_data, transition_data=transition_data, init_state_path='PrintUIMessage', prefix=self.PRINT_PREFIX, owner_name="UI")
 
         self.memory = Memory(prefix=self.PRINT_PREFIX)
         self.agent_manager = AgentManager()
-        self.agent_manager.register(self)
+        self.agent_manager.register_agent(self)
     
     def run(self, client):
         print("[bold][green]Welcome to [italic]Jarvis[/italic][/green][/bold]")
@@ -45,7 +40,7 @@ class UI(Agent):
         i = 0
         while self.csm.current_state.get_hpath() != "Exit":
             print(f"{self.PRINT_PREFIX} Iteration {i}")
-            print(f"{self.PRINT_PREFIX} self.csm.current_state.get_hpath()")
+            print(f"{self.PRINT_PREFIX} self.csm.current_state.get_hpath(): {self.csm.current_state.get_hpath()}")
 
             self.memory.load_all_prompts(self.csm.current_state.get_hpath(), dynamic_user_metaprompt=" > ")
 
@@ -60,15 +55,17 @@ class UI(Agent):
             print(f"{self.PRINT_PREFIX} parsed_response:")
             print(parsed_response)
 
-            trigger = self.match_trigger(parsed_response)
+            trigger, action = self.match_trigger(parsed_response)
             print(f"{self.PRINT_PREFIX} trigger: {trigger}")
+            print(f"{self.PRINT_PREFIX} action: {action}")
 
+            self.csm.current_state.action = action
             self.csm.transition(trigger, locals())
 
             i += 1
         
     def match_trigger(self, parsed_response: dict[str, Optional[str]]) -> str:
         if parsed_response["action"]:
-            return "actionNotNone"
+            return "actionNotNone", parsed_response["action"]
         else:
-            return "actionNone"
+            return "actionNone", None

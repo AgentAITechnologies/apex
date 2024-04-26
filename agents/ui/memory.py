@@ -1,6 +1,4 @@
 import os
-import platform
-import datetime
 import glob
 from typing import Optional
 import dotenv

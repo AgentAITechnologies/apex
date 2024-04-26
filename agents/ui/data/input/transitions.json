@@ -2,10 +2,10 @@
 
     { "trigger": "actionNone", "source": "PrintUIMessage", "dest": "PrintUIMessage" },
     
-    { "trigger": "actionNotNone", "source": "PrintUIMessage", "dest": "AssignTask" },
+    { "trigger": "actionNotNone", "source": "PrintUIMessage", "dest": "AssignAction" },
 
-    { "trigger": "epsilon", "source": "AssignTask", "dest": "PrintUIMessage" },
+    { "trigger": "epsilon", "source": "AssignAction", "dest": "PrintUIMessage" },
 
-    { "trigger": "Exit", "source": "AssignTask", "dest": "Exit" }
+    { "trigger": "Exit", "source": "AssignAction", "dest": "Exit" }
 
 ]
