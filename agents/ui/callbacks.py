@@ -1,8 +1,10 @@
 import sys
+import os
 import dotenv
 
 from rich import print
 
+from utils.parsing import *
 from agents.state_callback import StateCallback
 
 dotenv.load_dotenv()
@@ -26,7 +28,21 @@ class PrintUIMessage_Callback(StateCallback):
     def on_enter(self, csm, locals):
         print(f"{self.PRINT_PREFIX} Entering PrintUIMessage")
         # Perform actions when entering PrintUIMessage
-        pass
+        self = locals["self"]
+        client = locals["client"]
+
+        prompts = self.memory.load_all_prompts(self.csm.current_state.get_hpath(), "UI_DIR", dynamic_user_metaprompt=" > ", frmt=None)
+
+        llm_response = self.csm.current_state.llm_call(client=client,
+                                        formatted_system=prompts["system"],
+                                        formatted_messages=prompts["messages"],
+                                        stop_sequences=["</output>"])
+        
+        self.memory.store_llm_response("<output>" + llm_response.content[0].text + "</output>")
+
+        self.parsed_response = xmlstr2dict(llm_response.content[0].text)
+        print(f"{self.PRINT_PREFIX} self.parsed_response:")
+        print(self.parsed_response)
 
     def on_exit(self, csm, locals):
         print(f"{self.PRINT_PREFIX} Exiting PrintUIMessage")
@@ -39,13 +55,15 @@ class AssignAction_Callback(StateCallback):
         # Perform actions when entering AssignAction
 
         prior_state = csm.state_history[-1]
-        agent_manager = locals["self"].agent_manager
+        action = prior_state.result["action"]
 
+        agent_manager = locals["self"].agent_manager
+        
         # Should always be True
-        if prior_state.action:
-            print(f"{self.PRINT_PREFIX} prior_state.action: {prior_state.action}")
-            agent_manager.route_action(prior_state.action)
-            csm.transition("epsilon", {})
+        if action:
+            print(f"{self.PRINT_PREFIX} action: {action}")
+            agent_manager.ipc("routeAction", {"action": action})
+            csm.transition("epsilon", locals)
         else:
             print(f"[red][bold]{self.PRINT_PREFIX} prior_state {prior_state.get_hpath()} did not have an action[/bold][/red]")
             sys.exit(1)
@@ -65,4 +83,15 @@ class Exit_Callback(StateCallback):
     def on_exit(self, csm, locals):
         print(f"{self.PRINT_PREFIX} Exiting Exit")
         # Perform actions when exiting Exit
+        pass
+
+class Start_Callback(StateCallback):
+    def on_enter(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Entering Start")
+        # Perform actions when entering Start
+        pass
+
+    def on_exit(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Exiting Start")
+        # Perform actions when exiting Start
         pass

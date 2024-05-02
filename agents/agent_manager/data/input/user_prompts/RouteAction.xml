@@ -1,0 +1,6 @@
+Here is a list of all active agent sessions and their currently assigned task(s):
+{agents_str}
+
+You are now delegating the task
+{task}
+to either an agent session that already exists or one that you create now.

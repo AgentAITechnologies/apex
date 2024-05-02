@@ -8,6 +8,14 @@
 
             {
                 "name": "RouteAction"            
+            },
+
+            {
+                "name": "CreateAgent"
+            },
+
+            {
+                "name": "AssignAgent"
             }
         ]
 }

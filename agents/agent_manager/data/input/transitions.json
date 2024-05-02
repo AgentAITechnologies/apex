@@ -1,7 +1,10 @@
 [
-
     { "trigger": "routeAction", "source": "AwaitIPC", "dest": "RouteAction" },
-    
-    { "trigger": "epsilon", "source": "RouteAction", "dest": "AwaitIPC" }    
+
+    { "trigger": "createAgent", "source": "RouteAction", "dest": "CreateAgent" },
+    { "trigger": "epsilon", "source": "CreateAgent", "dest": "AwaitIPC" },
+
+    { "trigger": "assignAgent", "source": "RouteAction", "dest": "AssignAgent" },
+    { "trigger": "epsilon", "source": "AssignAgent", "dest": "AwaitIPC" }
 
 ]

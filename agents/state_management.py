@@ -10,6 +10,7 @@ import pygraphviz as pgv
 from rich import print
 
 from agents.ui.callbacks import *
+from agents.tot.callbacks import *
 from agents.agent_manager.callbacks import *
 
 # %%
@@ -29,7 +30,7 @@ class ConversationState:
         self.formatted_system = None
         self.formatted_messages = None
 
-        self.action: Optional[dict] = None
+        self.data: dict = {}
 
         self.parent = parent
 
@@ -105,8 +106,8 @@ class ConversationState:
 class ConversationStateMachine:
     PRINT_PREFIX = "[bold][CSM][/bold]"
 
-    def __init__(self, state_data=None, transition_data=None, init_state_path=None, prefix=None, owner_name=""):
-        self.owner_name = owner_name
+    def __init__(self, state_data=None, transition_data=None, init_state_path=None, prefix=None, owner_class_name=""):
+        self.owner_name = owner_class_name
 
         if prefix:
             self.PRINT_PREFIX = f"{prefix} {self.PRINT_PREFIX}"
@@ -118,7 +119,7 @@ class ConversationStateMachine:
         self.state_history: list[ConversationState] = [self.current_state]
 
         self.print_state_hierarchy()
-        self.visualize(owner_name)
+        self.visualize(owner_class_name)
         self.print_current_state()
 
     def transition(self, trigger: str, locals) -> Optional[ConversationState]:

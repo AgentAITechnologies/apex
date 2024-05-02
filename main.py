@@ -29,9 +29,9 @@ def main():
         api_key=os.environ.get("ANTHROPIC_API_KEY"),
     )
 
-    agent_manager = AgentManager(prefix=PRINT_PREFIX)
+    agent_manager = AgentManager(client=client, prefix=PRINT_PREFIX)
 
-    ui = UI(term_width=TERM_WIDTH, prefix=PRINT_PREFIX)
+    ui = UI(term_width=TERM_WIDTH, prefix=PRINT_PREFIX, name="UI")
     ui.run(client)
 
 

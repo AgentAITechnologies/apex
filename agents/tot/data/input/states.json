@@ -1,0 +1,45 @@
+{
+    "name": "root",
+
+    "children": [
+            {
+                "name": "Plan"
+            },
+
+            {
+                "name": "PlanVote"
+            },
+
+            {
+                "name": "SumPlanVotes"
+            },
+
+            {
+                "name": "ChoosePlan"
+            },
+
+            {
+                "name": "Propose"
+            },
+
+            {
+                "name": "ProposeVote"
+            },
+
+            {
+                "name": "SumProposeVotes"
+            },
+
+            {
+                "name": "ChooseProposition"
+            },
+
+            {
+                "name": "Exec"
+            },
+
+            {
+                "name": "Done"
+            }
+        ]
+}

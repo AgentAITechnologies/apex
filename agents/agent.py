@@ -5,7 +5,7 @@ import dotenv
 from rich import print
 
 class Agent():
-    def __init__(self, term_width: int, prefix: str = "", name: str = "UI"):
+    def __init__(self, term_width: int, prefix, name: str, description: str, tasks: list[dict]):
         self.term_width = term_width
 
         self.PRINT_PREFIX = f"[bold][{name}][/bold]"
@@ -13,6 +13,8 @@ class Agent():
             self.PRINT_PREFIX = f"{prefix} {self.PRINT_PREFIX}"
 
         self.name = name
+        self.description = description
+        self.tasks = tasks
 
         print(f"{self.PRINT_PREFIX} dotenv.load_dotenv(): {dotenv.load_dotenv()}")
 
