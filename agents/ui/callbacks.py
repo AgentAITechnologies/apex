@@ -5,6 +5,8 @@ import dotenv
 from rich import print
 
 from utils.parsing import *
+from utils.tts import tts
+
 from agents.state_callback import StateCallback
 
 dotenv.load_dotenv()
@@ -43,6 +45,9 @@ class PrintUIMessage_Callback(StateCallback):
         self.parsed_response = xmlstr2dict(llm_response.content[0].text)
         print(f"{self.PRINT_PREFIX} self.parsed_response:")
         print(self.parsed_response)
+
+        tts(self.parsed_response["response"])
+
 
     def on_exit(self, csm, locals):
         print(f"{self.PRINT_PREFIX} Exiting PrintUIMessage")
