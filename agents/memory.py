@@ -19,7 +19,7 @@ class Memory:
     PRINT_PREFIX = "[bold][MEMORY][/bold]"
     def __init__(self, file_ext: str = ".xml", prefix: str | None = None):
         if prefix:
-            self.PRINT_PREFIX = f"{prefix} {self.PRINT_PREFIX}"
+            self.PRINT_PREFIX = f"{self.PRINT_PREFIX} {prefix}"
 
         self.file_ext = file_ext
 
@@ -44,7 +44,7 @@ class Memory:
     
     def load_user_prompt(self, state_path: str, environ_path_key: str, dynamic_metaprompt: str, frmt: dict[str, str]) -> None:
         if dynamic_metaprompt:
-            use_stt = os.environ.get("USE_STT").lower() in ('true', '1', 't')
+            use_stt = os.environ.get("USE_STT") == "True"
 
             if not use_stt:
                 print(dynamic_metaprompt, end="")

@@ -21,6 +21,7 @@ def xmlstr2dict(xml_string: str) -> dict:
                 if child_result is not None:
                     if child_result != "None":
                         result[child.tag] = child_result
+                        result.update(child.attrib)
                     else:
                         result[child.tag] = None
             return result

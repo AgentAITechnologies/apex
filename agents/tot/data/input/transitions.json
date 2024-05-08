@@ -1,23 +1,23 @@
 [
 
-    { "trigger": "votePlan", "source": "Plan", "dest": "PlanVote" },
+    { "trigger": "PlanVote", "source": "Plan", "dest": "PlanVote" },
 
-    { "trigger": "scorePlans", "source": "PlanVote", "dest": "SumPlanVotes" },
+    { "trigger": "SumPlanVotes", "source": "PlanVote", "dest": "SumPlanVotes" },
     
-    { "trigger": "choosePlan", "source": "SumPlanVotes", "dest": "ChoosePlan" },
+    { "trigger": "ChoosePlan", "source": "SumPlanVotes", "dest": "ChoosePlan" },
 
-    { "trigger": "propose", "source": "ChoosePlan", "dest": "Propose" },
+    { "trigger": "Propose", "source": "ChoosePlan", "dest": "Propose" },
 
-    { "trigger": "votePropositions", "source": "Propose", "dest": "ProposeVote" },
+    { "trigger": "ProposeVote", "source": "Propose", "dest": "ProposeVote" },
 
-    { "trigger": "scorePropositions", "source": "ProposeVote", "dest": "SumProposeVotes" },
+    { "trigger": "SumProposeVotes", "source": "ProposeVote", "dest": "SumProposeVotes" },
 
-    { "trigger": "chooseProposition", "source": "SumProposeVotes", "dest": "ChooseProposition" },
+    { "trigger": "ChooseProposition", "source": "SumProposeVotes", "dest": "ChooseProposition" },
 
-    { "trigger": "exec", "source": "ChooseProposition", "dest": "Exec" },
+    { "trigger": "Exec", "source": "ChooseProposition", "dest": "Exec" },
 
-    { "trigger": "plan", "source": "Exec", "dest": "Plan" },
+    { "trigger": "Plan", "source": "Exec", "dest": "Plan" },
 
-    { "trigger": "done", "source": "Plan", "dest": "Done" }
+    { "trigger": "Done", "source": "Plan", "dest": "Done" }
 
 ]

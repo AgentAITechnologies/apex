@@ -18,7 +18,7 @@ CHANNELS = 1
 RATE = 44100
 CHUNK = 1024
 
-REC_KEY = 'right ctrl'
+REC_KEY = 'alt'
 QUIT_KEY = 'q'
 
 def transcribe_speech():

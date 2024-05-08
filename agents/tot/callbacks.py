@@ -1,3 +1,5 @@
+from rich import print
+
 import dotenv
 
 from agents.state_callback import StateCallback
@@ -14,6 +16,61 @@ class root_Callback(StateCallback):
     def on_exit(self, csm, locals):
         print(f"{self.PRINT_PREFIX} Exiting root")
         # Perform actions when exiting root
+        pass
+
+class HighLevel_Callback(StateCallback):
+    def on_enter(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Entering HighLevel")
+        # Perform actions when entering HighLevel
+        pass
+
+    def on_exit(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Exiting HighLevel")
+        # Perform actions when exiting HighLevel
+        pass
+
+class HighLevel_Plan_Callback(StateCallback):
+    def on_enter(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Entering HighLevel_Plan")
+        # Perform actions when entering HighLevel_Plan
+        pass
+
+    def on_exit(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Exiting HighLevel_Plan")
+        # Perform actions when exiting HighLevel_Plan
+        pass
+
+class HighLevel_PlanVote_Callback(StateCallback):
+    def on_enter(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Entering HighLevel_PlanVote")
+        # Perform actions when entering HighLevel_PlanVote
+        pass
+
+    def on_exit(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Exiting HighLevel_PlanVote")
+        # Perform actions when exiting HighLevel_PlanVote
+        pass
+
+class HighLevel_SumPlanVotes_Callback(StateCallback):
+    def on_enter(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Entering HighLevel_SumPlanVotes")
+        # Perform actions when entering HighLevel_SumPlanVotes
+        pass
+
+    def on_exit(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Exiting HighLevel_SumPlanVotes")
+        # Perform actions when exiting HighLevel_SumPlanVotes
+        pass
+
+class HighLevel_ChoosePlan_Callback(StateCallback):
+    def on_enter(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Entering HighLevel_ChoosePlan")
+        # Perform actions when entering HighLevel_ChoosePlan
+        pass
+
+    def on_exit(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Exiting HighLevel_ChoosePlan")
+        # Perform actions when exiting HighLevel_ChoosePlan
         pass
 
 class Plan_Callback(StateCallback):

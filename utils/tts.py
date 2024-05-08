@@ -1,7 +1,6 @@
 import dotenv
 import os
 import requests
-import pygame
 
 from io import BytesIO
 from pydub import AudioSegment
@@ -10,7 +9,7 @@ from pydub.playback import play
 dotenv.load_dotenv()
 
 def tts(text):
-    LATENCY_LEVEL = 1
+    LATENCY_LEVEL = 0
 
     url = f'https://api.elevenlabs.io/v1/text-to-speech/{os.environ.get("ELEVENLABS_VOICE_ID")}/stream?optimize_streaming_latency={LATENCY_LEVEL}'
 

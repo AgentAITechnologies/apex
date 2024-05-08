@@ -58,7 +58,7 @@ class AgentManager():
             print(f"{self.PRINT_PREFIX} Initialized the instance")
 
     def create_agent(self, name: str, description: str, tasks: list[dict]):
-        agent = ToT(name=name, description=description, tasks=tasks)
+        agent = ToT(name=name, description=description, tasks=tasks, client=self.client)
         self.register_agent(agent)
 
     def register_agent(self, agent: Agent):

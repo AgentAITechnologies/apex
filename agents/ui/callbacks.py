@@ -46,7 +46,8 @@ class PrintUIMessage_Callback(StateCallback):
         print(f"{self.PRINT_PREFIX} self.parsed_response:")
         print(self.parsed_response)
 
-        tts(self.parsed_response["response"])
+        if os.environ.get("USE_TTS") == "True":
+            tts(self.parsed_response["response"])
 
 
     def on_exit(self, csm, locals):

@@ -87,17 +87,17 @@ class ConversationState:
             self.callback: Optional[StateCallback] = None
             # sys.exit(69)
 
-    def llm_call(self, client, formatted_system, formatted_messages, stop_sequences):
+    def llm_call(self, client, formatted_system, formatted_messages, stop_sequences, temperature=0):
         self.formatted_system = formatted_system
         self.formatted_messages = formatted_messages
 
         message = client.messages.create(
             model=os.environ.get("MODEL"),
             max_tokens=4000,
-            temperature=0,
+            temperature=temperature,
             system=formatted_system,
             messages=formatted_messages,
-            stop_sequences=stop_sequences
+            stop_sequences=stop_sequences,
         )
         
         return message
