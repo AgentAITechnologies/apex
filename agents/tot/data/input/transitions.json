@@ -1,23 +1,16 @@
 [
 
     { "trigger": "PlanVote", "source": "Plan", "dest": "PlanVote" },
-
     { "trigger": "SumPlanVotes", "source": "PlanVote", "dest": "SumPlanVotes" },
-    
     { "trigger": "ChoosePlan", "source": "SumPlanVotes", "dest": "ChoosePlan" },
-
     { "trigger": "Propose", "source": "ChoosePlan", "dest": "Propose" },
-
     { "trigger": "ProposeVote", "source": "Propose", "dest": "ProposeVote" },
-
     { "trigger": "SumProposeVotes", "source": "ProposeVote", "dest": "SumProposeVotes" },
-
     { "trigger": "ChooseProposition", "source": "SumProposeVotes", "dest": "ChooseProposition" },
 
+    { "trigger": "Plan", "source": "ChooseProposition", "dest": "Plan" },
     { "trigger": "Exec", "source": "ChooseProposition", "dest": "Exec" },
 
-    { "trigger": "Plan", "source": "Exec", "dest": "Plan" },
-
-    { "trigger": "Done", "source": "Plan", "dest": "Done" }
+    { "trigger": "Done", "source": "Exec", "dest": "Done" }
 
 ]

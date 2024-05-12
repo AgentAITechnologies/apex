@@ -79,4 +79,27 @@ def find_missing_format_items(string):
         return format_items
     else:
         return None
-
+    
+def strip_step_tags(text):
+    pattern = r'<step_\d+>(.*?)</step_\d+>'
+    return re.sub(pattern, r'\1', text, flags=re.DOTALL)
+    
+def extract_steps(xml_string):
+    # Pattern matches the text within step tags and the step numbers
+    pattern = r"<step_(\d+)>(.*?)</step_\1>"
+    # Find all matches in the provided XML string
+    matches = re.findall(pattern, xml_string, re.DOTALL)
+    # Convert each match to a tuple of (step number as int, step text)
+    results = [f"<step_{step}>{text.strip()}</step_{step}>" for step, text in matches]
+    return results
+    
+'''
+def extract_steps(xml_string):
+    # Pattern matches the text within step tags and the step numbers
+    pattern = r"<step_(\d+)>(.*?)</step_\1>"
+    # Find all matches in the provided XML string
+    matches = re.findall(pattern, xml_string, re.DOTALL)
+    # Convert each match to a tuple of (step number as int, step text)
+    results = [(int(step), text.strip()) for step, text in matches]
+    return results
+'''

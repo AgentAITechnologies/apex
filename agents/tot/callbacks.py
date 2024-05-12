@@ -117,6 +117,17 @@ class ChoosePlan_Callback(StateCallback):
         # Perform actions when exiting ChoosePlan
         pass
 
+class ImprovePlan_Callback(StateCallback):
+    def on_enter(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Entering ImprovePlan")
+        # Perform actions when entering ImprovePlan
+        pass
+
+    def on_exit(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Exiting ImprovePlan")
+        # Perform actions when exiting ImprovePlan
+        pass
+
 class Propose_Callback(StateCallback):
     def on_enter(self, csm, locals):
         print(f"{self.PRINT_PREFIX} Entering Propose")

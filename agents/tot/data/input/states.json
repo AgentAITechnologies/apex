@@ -3,28 +3,6 @@
 
     "children": [
             {
-                "name": "HighLevel",
-
-                "children": [
-                    {
-                        "name": "Plan"
-                    },
-        
-                    {
-                        "name": "PlanVote"
-                    },
-        
-                    {
-                        "name": "SumPlanVotes"
-                    },
-        
-                    {
-                        "name": "ChoosePlan"
-                    }
-                ]
-            },
-
-            {
                 "name": "Plan"
             },
 

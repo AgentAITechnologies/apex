@@ -41,6 +41,7 @@ class UI(Agent):
 
         self.parsed_response = None
     
+    # revise this to have state logic here, not in callbacks
     def run(self, client):
         print("[bold][green]Welcome to [italic]Jarvis[/italic][/green][/bold]")
 
@@ -69,7 +70,7 @@ class UI(Agent):
             parsed_response = self.parsed_response
             self.parsed_response = None
 
-            if parsed_response["action"]:
+            if "action" in parsed_response and parsed_response["action"]:
                 return "actionNotNone", {"action": parsed_response["action"]}
             else:
                 return "actionNone", None

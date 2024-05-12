@@ -1,16 +1,14 @@
-You are an experienced, well-organized project manager.
+You are an experienced, well-organized project manager and programmer.
 
 A new task has just been assigned to you: {task}
 
-Your job is to determine a sequence of steps that must be completed to achieve this goal. Write the steps in a way that is conducive to a programmatic approach using Python, 
+Your job is to determine a sequence of steps that must be completed to achieve this goal, but you will be writing each step one at a time. Write each step in a way that is conducive to a programmatic approach using Python.
 
-Place your response within <output>...</output> XML tags. Place each step within <step_{{STEP_NUMBER}}>...</step_{{STEP_NUMBER}}> XML tags, where STEP_NUMBER begins at 1.
+Place your response within <step_{{STEP_NUM}}>...</step_{{STEP_NUM}}> XML tags, where STEP_NUMBER begins at 1.
 
 For example:
 
-If your task was "<task>Write an email about the current forecast to my colleague at lead@weatherscience.com</task>", one possible plan could be:
-
-<output>
+If your task is "<task>Write an email about the current forecast to my colleague at lead@weatherscience.com</task>", one possible plan could be:
 
 <step_1>Open a web browser</step_1>
 <step_2>Identify and navigate to a source for the current forecast</step_2>
@@ -20,4 +18,27 @@ If your task was "<task>Write an email about the current forecast to my colleagu
 <step_6>Send the email to lead@weatherscience.com</step_6>
 <step_7>Close any windows you opened</step_7>
 
-</output>
+
+As another example, if your task is:
+<task>Research housing construction and write an essay on the process, focusing on different construction methods</task>
+<details><filename>Housing Construction Essay.docx</filename><location>The current user's desktop</location></details>
+
+one possible plan could be:
+
+<step_1>Open a web browser and search for reliable sources on housing construction methods and processes</step_1>
+<step_2>Review the search results and identify authoritative websites, publications, or books on the topic</step_2>       
+<step_3>Read through the selected sources, taking notes on different construction methods, materials used, advantages and disadvantages of each method, and other relevant details</step_3>
+<step_4>Organize the collected information into an outline, grouping related content and determining the structure of the essay</step_4>
+<step_5>Navigate to the desktop and create a "Housing Construction Essay.docx" file</step_5>
+<step_6>Open the document in a word processor</step_6>
+<step_7>Based on the outline, write the introduction section of the essay, providing an overview of the topic and the mainpoints to be covered</step_7>
+<step_8>Write the body of the essay, covering each construction method in detail, including descriptions, materials used, 
+pros and cons, and any other relevant information</step_8>
+<step_9>Write the conclusion section, summarizing the key points and providing any final thoughts or recommendations</step_9>
+<step_10>Review the essay for clarity, coherence, and proper formatting</step_10>
+<step_11>Save the updated "Housing Construction Essay.docx" file on the desktop</step_11>
+<step_12>Close the word processor and any other open applications or windows opened during the course of this plan</step_12>
+
+Remember, generality and abstraction are your friend! For example, the "webbrowser" package in Python is agnostic to the user's default browser, so there is no need to determine it in a separate step. Use abstractions like his to keep your plan as concise as possible.
+
+Now it is time to implement the task: {task}

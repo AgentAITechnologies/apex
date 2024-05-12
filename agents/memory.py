@@ -42,7 +42,7 @@ class Memory:
 
         return retval
     
-    def load_user_prompt(self, state_path: str, environ_path_key: str, dynamic_metaprompt: str, frmt: dict[str, str]) -> None:
+    def load_user_prompt(self, state_path: str, environ_path_key: str, dynamic_metaprompt: str, frmt: dict[str, str]) -> Optional[str]:
         if dynamic_metaprompt:
             use_stt = os.environ.get("USE_STT") == "True"
 
@@ -87,17 +87,17 @@ class Memory:
 
         return sys_prompt
 
-    def load_assistant_prefill(self):
-        assistant_prefill = "<output>"
+    def load_assistant_prefill(self, prefill: str = "<output>"):
+        assistant_prefill = prefill
         self.add_msg(assistant_prefill, "assistant", {})
 
     def load_all_prompts(self, state_path: str, environ_path_key: str, dynamic_user_metaprompt: str, frmt: dict[str, str]) -> dict:
-        system = self.load_sys_prompt(state_path, environ_path_key, frmt)
+        self.load_sys_prompt(state_path, environ_path_key, frmt)
         
         self.load_user_prompt(state_path, environ_path_key, dynamic_user_metaprompt, frmt)
         self.load_assistant_prefill()
 
-        return {"system": system, "messages": self.conversation_history}
+        return {"system": self.sys_prompt_history[-1], "messages": self.conversation_history}
 
     def store_llm_response(self, result: str):
         if self.conversation_history[-1]["role"] == "assistant":

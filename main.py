@@ -1,7 +1,6 @@
 import anthropic
 import os
 import dotenv
-import json
 
 from rich import print
 
