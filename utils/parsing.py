@@ -59,13 +59,13 @@ def xml2xmlstr(xml, no_root=True):
         return ET.tostring(xml, encoding="unicode")
 
 
-def extract_language_and_code(markdown_string):
-    # Updated pattern to capture the language name after the first set of backticks
+def extract_language_and_code(markdown_string: str) -> Optional[tuple[str, str]]:
     pattern = re.compile(r"```(\w+)\n(.*?)```", re.DOTALL)
     match = pattern.search(markdown_string)
     if match:
-        # Return a 2-tuple containing the language name and the code
-        return match.group(1), match.group(2)
+        language_name = match.group(1)
+        code = match.group(2)
+        return language_name, code
     else:
         return None
     

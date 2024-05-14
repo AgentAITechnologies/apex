@@ -22,6 +22,8 @@ Place your response within <output>...</output> XML tags. Place your reasoning f
 
 If the "correctness" score is 0, the "overall" score is 0.
 
+Do not deduct points if a step does not complete the task on its own, since you will be evaluating future steps using all previous steps as context. Only give a score based on how well the step furthers progress towards the goal.
+
 For example, if your task is "<task>Write an email about the current forecast to my colleague at lead@weatherscience.com</task>", and each step of the plan is:
 
 <plan>
@@ -112,4 +114,4 @@ Step 5 should not assume the "Housing Construction Essay.docx" file already exis
 The task you are to complete is:
 {task}
 
-Evaluate the step given according to the these instructions.
+Evaluate the how likely the step is to make meaningful progress towards the overall task given according to the these instructions. Even if this step alone does not complete the task, it may receive a perfect correctness score because it will be followed by more steps if necessary.

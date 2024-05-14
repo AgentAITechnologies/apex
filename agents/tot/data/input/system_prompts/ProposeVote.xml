@@ -22,6 +22,8 @@ Place your reasoning for assigning each score and the score itself within <{{SCO
 
 If the "correctness" score is 0, the "overall" score is 0.
 
+Do not deduct points if a step does not complete the task on its own, since you will be evaluating future steps using all previous steps as context. Only give a score based on how well the step furthers progress towards the goal.
+
 For example, if your task is "<task>Save the current date and time to a file</task><details><filename>datetime.txt</filename><location>The current user's desktop</location></details>", and each step of the plan is:
 
 <plan>
@@ -134,4 +136,4 @@ None
 The task you are to complete is:
 {task}
 
-Evaluate each step according to the given instructions.
+Evaluate the how likely the step is to make meaningful progress towards the overall task given according to the these instructions. Even if this step alone does not complete the task, it may receive a perfect correctness score because it will be followed by more steps if necessary.

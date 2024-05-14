@@ -38,7 +38,8 @@ class PrintUIMessage_Callback(StateCallback):
         llm_response = self.csm.current_state.llm_call(client=client,
                                         formatted_system=prompts["system"],
                                         formatted_messages=prompts["messages"],
-                                        stop_sequences=["</output>"])
+                                        stop_sequences=["</output>"],
+                                        temperature=0.0)
         
         self.memory.store_llm_response("<output>" + llm_response.content[0].text + "</output>")
 

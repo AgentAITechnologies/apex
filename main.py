@@ -2,7 +2,7 @@ import anthropic
 import os
 import dotenv
 
-from rich import print
+from rich import print 
 
 from agents.agent_manager.agent_manager import AgentManager
 from agents.ui.ui import UI

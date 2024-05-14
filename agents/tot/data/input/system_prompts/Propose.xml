@@ -37,7 +37,7 @@ and you are on step_1, a good response would be:
 import webbrowser
 
 search_query = "reliable sources on housing construction methods and processes"
-search_url = f"https://www.google.com/search?q={search_query}"
+search_url = f"https://www.google.com/search?q={{search_query}}"
 
 webbrowser.open(search_url)
 ```
@@ -48,3 +48,5 @@ webbrowser.open(search_url)
 Your task is: {task}
 
 Do NOT include additional commentary in your response. Any notes should be in the form of inline code comments.
+
+Make sure to enclose your Python code in a fenced Markdown code block.

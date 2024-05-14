@@ -13,6 +13,8 @@ from agents.ui.callbacks import *
 from agents.tot.callbacks import *
 from agents.agent_manager.callbacks import *
 
+from anthropic import Anthropic
+
 # %%
 class ConversationState:
     PRINT_PREFIX = "[bold][CS][/bold]"
@@ -87,7 +89,7 @@ class ConversationState:
             self.callback: Optional[StateCallback] = None
             # sys.exit(69)
 
-    def llm_call(self, client, formatted_system, formatted_messages, stop_sequences, temperature=0):
+    def llm_call(self, client: Anthropic, formatted_system, formatted_messages, stop_sequences, temperature):
         self.formatted_system = formatted_system
         self.formatted_messages = formatted_messages
 

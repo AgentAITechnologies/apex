@@ -68,7 +68,8 @@ class RouteAction_Callback(StateCallback):
         llm_response = self.csm.current_state.llm_call(client=self.client,
                                             formatted_system=prompts["system"],
                                             formatted_messages=prompts["messages"],
-                                            stop_sequences=["</output>"])
+                                            stop_sequences=["</output>"],
+                                            temperature=0.0)
         
         self.memory.store_llm_response("<output>" + llm_response.content[0].text + "</output>")
 
@@ -97,13 +98,13 @@ class CreateAgent_Callback(StateCallback):
         llm_response = self.csm.current_state.llm_call(client=self.client,
                                     formatted_system=prompts["system"],
                                     formatted_messages=prompts["messages"],
-                                    stop_sequences=["</output>"])
+                                    stop_sequences=["</output>"],
+                                    temperature=0.0)
         
         self.memory.store_llm_response("<output>" + llm_response.content[0].text + "</output>")
 
         self.parsed_response = xmlstr2dict(llm_response.content[0].text)
-        print(f"{self.PRINT_PREFIX} self.parsed_response:")
-        print(self.parsed_response)
+        print(f"{self.PRINT_PREFIX} self.parsed_response:\n{self.parsed_response}")
 
         agent_name = self.parsed_response["name"]
         print(f"{self.PRINT_PREFIX} Creating agent: {agent_name}")
