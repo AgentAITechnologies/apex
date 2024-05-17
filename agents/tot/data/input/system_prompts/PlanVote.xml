@@ -18,7 +18,7 @@ If you can clearly understand both the content and the purpose (the "what" and "
 4. Overall
 Rate the overall quality of the planned step from 0 to 10 based on your prior assesment and anything else that you didn't get a chance to mention. This also serves as a way to express how likely you think the planned step will further the completion of the overall task, where 0 is "it will not" and 10 is "it certainly will".
 
-Place your response within <output>...</output> XML tags. Place your reasoning for assigning each score and the score itself within <{{SCORE_NAME}}><reasoning>{{REASONING}}</reasoning><score>{{SCORE}}</score></reasoning></{{SCORE_NAME}}> XML tags. Place suggestions for improvement within <suggestions>...</suggestions> XML tags.
+Place your response within XML tags corresponding to the current step, e.g. <step_{{STEP_NUM}}>...</step{{STEP_NUM}}>. Place your reasoning for assigning each score and the score itself within <{{SCORE_NAME}}><reasoning>{{REASONING}}</reasoning><score>{{SCORE}}</score></reasoning></{{SCORE_NAME}}> XML tags. Place suggestions for improvement within <suggestions>...</suggestions> XML tags.
 
 If the "correctness" score is 0, the "overall" score is 0.
 
@@ -114,4 +114,9 @@ Step 5 should not assume the "Housing Construction Essay.docx" file already exis
 The task you are to complete is:
 {task}
 
-Evaluate the how likely the step is to make meaningful progress towards the overall task given according to the these instructions. Even if this step alone does not complete the task, it may receive a perfect correctness score because it will be followed by more steps if necessary.
+Here is a history of the steps you have already taken and their results:
+<history>
+{exec_history}
+</history>
+
+Evaluate the how likely the next planned step is to make meaningful progress towards the overall task given according to the these instructions. Even if this step alone does not complete the task, it may receive a perfect correctness score because it will be followed by more steps if necessary.

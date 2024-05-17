@@ -1,0 +1,20 @@
+This was step {step_num}:
+
+<description>
+{step_plan}
+</description>
+<implementation>
+{step_implementation}
+</implementation>
+
+After executing this code, you got these results:
+
+<std_error>
+{error}
+</std_error>
+
+<std_output>
+{output}
+</std_output>
+
+Is the task complete? Why or why not?

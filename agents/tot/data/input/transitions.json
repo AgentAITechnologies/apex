@@ -10,9 +10,13 @@
     { "trigger": "ChooseProposition", "source": "SumProposeVotes", "dest": "ChooseProposition" },
     { "trigger": "Exec", "source": "ChooseProposition", "dest": "Exec" },
 
+    { "trigger": "PlanErrorFix", "source": "Exec", "dest": "PlanErrorFix" },
     { "trigger": "ExecVote", "source": "Exec", "dest": "ExecVote" },
 
-    { "trigger": "Plan", "source": "ExecVote", "dest": "Plan" },
-    { "trigger": "Done", "source": "ExecVote", "dest": "Done" }
+    { "trigger": "PlanVote", "source": "PlanErrorFix", "dest": "PlanVote" },
+    { "trigger": "SumExecVote", "source": "ExecVote", "dest": "SumExecVote" },
+    
+    { "trigger": "Plan", "source": "SumExecVote", "dest": "Plan" },
+    { "trigger": "Done", "source": "SumExecVote", "dest": "Done" }
 
 ]

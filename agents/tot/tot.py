@@ -48,6 +48,8 @@ class ToT():
 
         self.memory = Memory(prefix=self.PRINT_PREFIX)
 
+        self.code_executor = CodeExecutor(self.PRINT_PREFIX)
+
         self.run()
     
     def llm_turn(self, prompts, temperature, stop_sequences) -> str:
@@ -68,8 +70,9 @@ class ToT():
 
         plan_voter_memories = self.init_voter_memories()
         propose_voter_memories = self.init_voter_memories()
+        exec_voter_memories = self.init_voter_memories()
 
-        code_executor = CodeExecutor(self.PRINT_PREFIX)
+        exec_history = ""
 
         while self.csm.current_state.name != "Done":
 
@@ -79,16 +82,21 @@ class ToT():
             match self.csm.current_state.get_hpath():
                 
                 case "Plan":
+
                     for plan_memory in plan_memories:
                         self.plan(step_num, start_seq, stop_seq, plan_memory)
 
                     self.csm.transition("PlanVote", locals())
 
                 case "PlanVote":
-                    for plan in plan_memories:
+                    for plan_memory in plan_memories:
                         for voter in plan_voter_memories:
-                            step_plan = plan.conversation_history[-1]["content"]
-                            self.vote(step_num, start_seq, stop_seq, plan, voter, step_plan, None)
+                            step_plan = plan_memory.conversation_history[-1]["content"]
+
+                            addl_user_frmt = {"step_plan": step_plan}
+                            addl_sys_frmt = {"exec_history": exec_history}
+                            
+                            self.vote(step_num, start_seq, stop_seq, plan_memory, voter, addl_sys_frmt=addl_sys_frmt, addl_user_frmt=addl_user_frmt)
 
                     self.csm.transition("SumPlanVotes", locals())
 
@@ -109,12 +117,13 @@ class ToT():
                     self.csm.transition("ProposeVote", locals())
 
                 case "ProposeVote":
-                    for plan in plan_memories:
+                    for plan_memory in plan_memories:
                         for voter in propose_voter_memories:
-                            step_plan = strip_step_tags(plan.conversation_history[-3]["content"])
-                            step_implementation = strip_step_tags(plan.conversation_history[-1]["content"]).strip()
+                            step_plan = strip_step_tags(plan_memory.conversation_history[-3]["content"])
+                            step_implementation = strip_step_tags(plan_memory.conversation_history[-1]["content"]).strip()
 
-                            self.vote(step_num, start_seq, stop_seq, plan, voter, step_plan, step_implementation)
+                            addl_user_frmt = {"step_plan": step_plan, "step_implementation": step_implementation}
+                            self.vote(step_num, start_seq, stop_seq, plan_memory, voter, addl_user_frmt=addl_user_frmt)
 
                     self.csm.transition("SumProposeVotes", locals())
 
@@ -130,23 +139,65 @@ class ToT():
 
                 case "Exec":
                     best_plan_memory = self.get_plan_memory(best_plan_idx, plan_memories)
-                    best_plan_fenced_code = best_plan_memory.conversation_history[-1]["content"]
 
+                    best_plan = best_plan_memory.conversation_history[-3]["content"]
+                    best_plan_fenced_code = best_plan_memory.conversation_history[-1]["content"]
+                    
                     parsed_code = extract_language_and_code(best_plan_fenced_code)
                     if not parsed_code:
                         print(f"[red][bold]{self.PRINT_PREFIX} code not parsable:\n{best_plan_fenced_code}[/bold][/red]")
                         exit(1)
                     
-                    language, code = extract_language_and_code(best_plan_fenced_code)
+                    language, code = parsed_code
 
                     print(f"{self.PRINT_PREFIX} executing code:\n{code}", end='')
-                    code_result = code_executor.execute_code(code)
-                    print(f"{self.PRINT_PREFIX} code output:\n{code_result}", end='')
+                    output, error = self.code_executor.execute_code(code)
 
-                    self.csm.transition("ExecVote", locals())
+                    exec_history += start_seq + "\n"
+                    exec_history += "<plan>" + strip_step_tags(best_plan) + "</plan>" + "\n"
+                    exec_history += "<code>" + code + "</code>" + "\n"
+                    exec_history += "<std_output>" + output + "</std_output>" + "\n"
+                    exec_history += "<std_error>" + error + "</std_error>" + "\n"
+                    exec_history += stop_seq + "\n"
+
+                    print(f"{self.PRINT_PREFIX} output:\n{output}", end='')
+                    print(f"{self.PRINT_PREFIX} error:\n{error}", end='')
+
+                    if error:
+                        self.csm.transition("PlanErrorFix", locals())
+                    else:
+                        self.csm.transition("ExecVote", locals())
+
+                case "PlanErrorFix":
+                    for plan_memory in plan_memories:
+                        addl_frmt = {"output": output, "error": error}
+                        self.plan(step_num, start_seq, stop_seq, plan_memory, addl_sys_frmt=addl_frmt, addl_user_frmt=addl_frmt)
+
+                    step_num += 1
+                    self.csm.transition("PlanVote", locals())
 
                 case "ExecVote":
-                    pass
+                    for voter in exec_voter_memories:
+                        addl_frmt = {"output": output,
+                                     "error": error,
+                                     "step_plan": step_plan,
+                                     "step_implementation": step_implementation}
+                        
+                        self.vote(step_num, "<output>", "</output>", best_plan_memory, voter, addl_user_frmt=addl_frmt)
+
+                    self.csm.transition("SumExecVote", locals())
+
+                case "SumExecVote":
+                    sum_yes_votes, avg_yes_votes = self.reduce_scores_exec(exec_voter_memories, step_num)
+
+                    if avg_yes_votes > 0.5:
+                        self.csm.transition("Done", locals())
+                    else:
+                        step_num += 1
+                        self.csm.transition("Plan", locals())
+
+        print(f"{self.PRINT_PREFIX} done!")
+        return
 
 
     def init_plan_memories(self) -> list[Memory]:
@@ -180,33 +231,41 @@ class ToT():
             if plan_memory.plan_idx == plan_idx:
                 return plan_memory
     
-    def plan(self, step_num: int, START_SEQ: str, STOP_SEQ: str, plan_memory: Memory) -> None:
-        system = plan_memory.load_sys_prompt(self.csm.current_state.get_hpath(), "TOT_DIR", frmt={"task": self.tasks[-1]})
+    def plan(self, step_num: int, START_SEQ: str, STOP_SEQ: str, plan_memory: Memory, addl_sys_frmt: dict = {}, addl_user_frmt: dict = {}) -> None:
+        system_frmt = {"task": self.tasks[-1]}
+        system_frmt.update(addl_sys_frmt)
 
-        plan_memory.load_user_prompt(self.csm.current_state.get_hpath(), "TOT_DIR", dynamic_metaprompt=None, frmt={"step_num": step_num})
+        system = plan_memory.load_sys_prompt(self.csm.current_state.get_hpath(), "TOT_DIR", frmt=system_frmt)
+
+        user_frmt = {"step_num": step_num}
+        user_frmt.update(addl_user_frmt)
+
+        plan_memory.load_user_prompt(self.csm.current_state.get_hpath(), "TOT_DIR", dynamic_metaprompt=None, frmt=user_frmt)
         plan_memory.load_assistant_prefill(START_SEQ)
 
         llm_response = self.llm_turn(prompts={"system": system, "messages": plan_memory.conversation_history}, temperature=TEMP, stop_sequences=[STOP_SEQ])
 
         plan_memory.store_llm_response(START_SEQ + llm_response + STOP_SEQ)
 
-    def vote(self, step_num: int, START_SEQ: str, STOP_SEQ: str, plan, voter: Memory, step_plan: str, step_implementation: Optional[str]) -> None:
-        system = voter.load_sys_prompt(self.csm.current_state.get_hpath(), "TOT_DIR", frmt={"task": self.tasks[-1]})
+    def vote(self, step_num: int, START_SEQ: str, STOP_SEQ: str, plan_memory: Memory, voter: Memory, addl_sys_frmt: dict = {}, addl_user_frmt: dict = {}) -> None:
+        system_frmt = {"task": self.tasks[-1]}
+        system_frmt.update(addl_sys_frmt)
 
-        frmt = {"step_plan": step_plan}
-        if step_implementation:
-            frmt["step_implementation"] = step_implementation
+        system = voter.load_sys_prompt(self.csm.current_state.get_hpath(), "TOT_DIR", frmt=system_frmt)
 
-        voter.load_user_prompt(self.csm.current_state.get_hpath(), "TOT_DIR", dynamic_metaprompt=None, frmt=frmt)
+        user_frmt = {"step_num": step_num}
+        user_frmt.update(addl_user_frmt)
+
+        voter.load_user_prompt(self.csm.current_state.get_hpath(), "TOT_DIR", dynamic_metaprompt=None, frmt=user_frmt)
         voter.load_assistant_prefill(START_SEQ)
 
-        print(f"{self.PRINT_PREFIX} voter {voter.voter_idx}, plan {plan.plan_idx}:")
+        print(f"{self.PRINT_PREFIX} voter {voter.voter_idx}, plan {plan_memory.plan_idx}:")
         llm_response = self.llm_turn(prompts={"system": system, "messages": voter.conversation_history}, temperature=TEMP, stop_sequences=[STOP_SEQ])
 
         xml_text = START_SEQ + llm_response + STOP_SEQ
         voter.store_llm_response(xml_text)
 
-        vote_result = {"step_num": step_num, "plan_idx": plan.plan_idx, "xml_text": xml_text}
+        vote_result = {"step_num": step_num, "plan_idx": plan_memory.plan_idx, "xml_text": xml_text}
         voter.vote_results.append(vote_result)
 
     def reduce_scores(self, voter_memories: Memory, step_num: int):
@@ -235,6 +294,25 @@ class ToT():
         print(f"{self.PRINT_PREFIX} avg_scores:\n{avg_scores}")
         
         return sum_scores, avg_scores
+    
+    def reduce_scores_exec(self, voter_memories: Memory, step_num: int):
+        sum_yes_votes = 0
+        avg_yes_votes = 0
+
+        for voter in voter_memories:
+            for vote_result in voter.vote_results:
+                if vote_result['step_num'] == step_num:
+                    parsed_scores = xmlstr2dict(vote_result['xml_text'])
+
+                    if parsed_scores['output']['complete'] == "yes":
+                        sum_yes_votes += 1
+
+        avg_yes_votes = sum_yes_votes / len(voter_memories)
+        
+        print(f"{self.PRINT_PREFIX} sum_yes_votes: {sum_yes_votes}")
+        print(f"{self.PRINT_PREFIX} avg_yes_votes: {avg_yes_votes}")
+        
+        return sum_yes_votes, avg_yes_votes
 
     def choose_plan(self, avg_scores):
         avg_scores_list: list[str, float | int] = [{**avg_scores[i], "plan_idx": i} for i in sorted(avg_scores.keys())]    

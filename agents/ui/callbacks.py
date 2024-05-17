@@ -39,7 +39,7 @@ class PrintUIMessage_Callback(StateCallback):
                                         formatted_system=prompts["system"],
                                         formatted_messages=prompts["messages"],
                                         stop_sequences=["</output>"],
-                                        temperature=0.0)
+                                        temperature=0.7)
         
         self.memory.store_llm_response("<output>" + llm_response.content[0].text + "</output>")
 

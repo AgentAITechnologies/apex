@@ -1,1 +1,4 @@
+<step{step_num}>
+<plan>
 {step_plan}
+</plan>

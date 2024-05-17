@@ -1,0 +1,11 @@
+Your previous code from step {step_num} produced this erroneous output:
+
+<std_error>
+{error}
+</std_error>
+
+<std_output>
+{output}
+</std_output>
+
+Propose a solution that may be easily transcribed into Python code. Do NOT write the code, simply explain how to fix this error in plain English that may be converted to Python code later.

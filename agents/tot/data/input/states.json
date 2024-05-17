@@ -39,7 +39,15 @@
             },
 
             {
+                "name": "PlanErrorFix"
+            },
+
+            {
                 "name": "ExecVote"
+            },
+
+            {
+                "name": "SumExecVote"
             },
 
             {

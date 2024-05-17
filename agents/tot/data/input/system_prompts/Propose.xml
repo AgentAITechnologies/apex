@@ -49,4 +49,6 @@ Your task is: {task}
 
 Do NOT include additional commentary in your response. Any notes should be in the form of inline code comments.
 
+Don't be afraid to simulate human input if necessary!
+
 Make sure to enclose your Python code in a fenced Markdown code block.

@@ -183,6 +183,29 @@ class ExecVote_Callback(StateCallback):
         # Perform actions when exiting ExecVote
         pass
 
+class PlanErrorFix_Callback(StateCallback):
+    def on_enter(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Entering PlanErrorFix")
+        # Perform actions when entering PlanErrorFix
+        pass
+
+    def on_exit(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Exiting PlanErrorFix")
+        # Perform actions when exiting PlanErrorFix
+        pass
+
+class SumExecVote_Callback(StateCallback):
+    def on_enter(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Entering SumExecVote")
+        # Perform actions when entering SumExecVote
+        pass
+
+    def on_exit(self, csm, locals):
+        print(f"{self.PRINT_PREFIX} Exiting SumExecVote")
+        # Perform actions when exiting SumExecVote
+        pass
+
+
 class Done_Callback(StateCallback):
     def on_enter(self, csm, locals):
         print(f"{self.PRINT_PREFIX} Entering Done")
