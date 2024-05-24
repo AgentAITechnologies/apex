@@ -8,7 +8,7 @@ Given the history of steps you have taken to accomplish the task, you must now d
 
 Indicate your decision with a yes or no answer.
 
-If the task is complete, place the exact text "yes" within <complete>...</complete> XML tags. If further steps should be taken to complete the overall task, place the exact text "no" within <complete>...</complete> XML tags. Place your reasoning for your decision within <reasoning>...</reasoning> XML tags. Place all of your output within <output>...</output> XML tags.
+If the task is complete, place the exact text "yes" within <complete>...</complete> XML tags. If further steps should be taken to complete the overall task, place the exact text "no" within <complete>...</complete> XML tags. Place your reasoning for your decision within <reasoning>...</reasoning> XML tags. Place your entire evaluation within <evaluation>...</evaluation> XML tags.
 
 For example, if your task is "<task>Write an email about the current forecast to my colleague at lead@weatherscience.com</task>" and this is the plan you have executed so far:
 
@@ -26,10 +26,10 @@ For example, if your task is "<task>Write an email about the current forecast to
 
 a reasonable respose would be:
 
-<output>
+<evaluation>
 <reasoning>I have fulfilled each of the criteria specified in the task. The current forecast was successfully obtained, it was emailed to lead@weatherscience.com, and I have cleaned up after my work by closing any applications I opened to accomplish the task.</reasoning>
 <complete>yes</complete>
-</output>
+</evaluation>
 
 As another example, if your task is:
 <task>Research housing construction and write an essay on the process, focusing on different construction methods</task>
@@ -48,12 +48,12 @@ disadvantages of each method, and other relevant details</step_3>
 
 a reasonable response would be:
 
-<output>
+<evaluation>
 <reasoning>I have not completed the task. While I have done research on different construction methods, I have not written the file "Housing Construction Essay.docx" with my research results in essay form to the current user's desktop.</reasoning>
 <complete>no</complete>
-</output>
+</evaluation>
 
-The task you are to complete is:
+The task you are to evaluate the completion of is:
 {task}
 
 Evaluate if the task is complete based on the history of steps taken and their results. Indicate your decision according to the specified instructions.

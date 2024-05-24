@@ -1,4 +1,5 @@
-<step{step_num}>
-<plan>
-{step_plan}
-</plan>
+Evaluate step {step_num} of the task {task}:
+
+<step_{step_num}>
+<plan>{plan}</plan>
+</step_{step_num}>

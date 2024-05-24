@@ -205,7 +205,6 @@ class SumExecVote_Callback(StateCallback):
         # Perform actions when exiting SumExecVote
         pass
 
-
 class Done_Callback(StateCallback):
     def on_enter(self, csm, locals):
         print(f"{self.PRINT_PREFIX} Entering Done")

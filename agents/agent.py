@@ -6,6 +6,8 @@ from rich import print
 
 class Agent():
     def __init__(self, term_width: int, prefix, name: str, description: str, tasks: list[dict]):
+        dotenv.load_dotenv()
+        
         self.term_width = term_width
 
         self.PRINT_PREFIX = f"[bold][{name}][/bold]"

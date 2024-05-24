@@ -1,12 +1,64 @@
+from typing import Optional
+
+import glob
+import os
 import re
 
 import xml.etree.ElementTree as ET
-from typing import Optional
 
-def xmlstr2dict(xml_string: str) -> dict:
-    xml_string = xml_string.strip()
-    xml_string = f"<root>{xml_string}</root>"
-    root = ET.fromstring(xml_string)
+from rich import print
+
+from utils.enums import Role
+from utils.llm import llm_turn
+from agents.prompt_management import get_msg
+
+from anthropic import Anthropic
+
+PRINT_PREFIX = "[bold][Parsing][/bold]"
+
+def files2dict(path, extension: str) -> dict[str, str]:
+    retval = {}
+
+    source_files = glob.glob(os.path.join(path, f'*{extension}'))
+
+    for source_file in source_files:
+        with open(source_file, 'r') as f:
+            retval[os.path.basename(source_file).replace(extension, "")] = f.read()
+
+    return retval
+
+def xmlstr2dict(xml_string: str, client: Optional[Anthropic] = None) -> dict:
+    try:
+        xml_string = xml_string.strip()
+        xml_string = f"<root>{xml_string}</root>"
+        root = ET.fromstring(xml_string)
+
+    except ET.ParseError:
+        if client:
+            print(f"{PRINT_PREFIX} [yellow][bold]Error parsing XML:\n{xml_string}[/bold][/yellow]")
+            print(f"{PRINT_PREFIX} [yellow][bold]Attempting fix...[/bold][/yellow]")
+
+            system_prompt = """You are an expert in the field of programming, and are especially good at finding mistakes XML files.
+Make sure there are no mistakes in the XML file, such as invalid characters, missing or unclosed tags, etc.
+You may also want to make sure that the XML file is well-formed.
+Make sure the tag pairs that were given remain and are balanced.
+If there are unclosed tags used as section titles, you should close them."""
+            user_prompt = f"Fix the following XML file according to the given instructions:\n{xml_string}\n"
+            assistant_prompt = "<root>"
+            stop_seq = "</root>"
+
+            messages = [get_msg(Role.USER, user_prompt), get_msg(Role.ASSISTANT, assistant_prompt)]
+
+            fixed_xml = llm_turn(client=client,
+                                prompts={"system": system_prompt,
+                                        "messages": messages},
+                                stop_sequences=[stop_seq],
+                                temperature=0.7)
+
+            return xmlstr2dict(fixed_xml, client)
+        else:
+            print(f"{PRINT_PREFIX} [red][bold]Error parsing XML, and no client passed:\n{xml_string}[/bold][/red]")
+            exit(1)
     
     def parse_element(element: ET.Element) -> Optional[dict]:
         if len(element) == 0:

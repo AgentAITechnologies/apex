@@ -87,24 +87,7 @@ class ConversationState:
         else:
             print(f"[red bold]{self.PRINT_PREFIX} no callback found for state {self.get_hpath()}[/red bold]")
             self.callback: Optional[StateCallback] = None
-            # sys.exit(69)
 
-    def llm_call(self, client: Anthropic, formatted_system, formatted_messages, stop_sequences, temperature):
-        self.formatted_system = formatted_system
-        self.formatted_messages = formatted_messages
-
-        message = client.messages.create(
-            model=os.environ.get("MODEL"),
-            max_tokens=4000,
-            temperature=temperature,
-            system=formatted_system,
-            messages=formatted_messages,
-            stop_sequences=stop_sequences,
-        )
-        
-        return message
-
-# %%
 class ConversationStateMachine:
     PRINT_PREFIX = "[bold][CSM][/bold]"
 
@@ -138,7 +121,7 @@ class ConversationStateMachine:
             return self.current_state
         else:
             print(f"[red][bold]{self.PRINT_PREFIX} invalid trigger '{trigger}' for state {self.current_state.get_hpath()}[/bold][/red]")
-            sys.exit(2)
+            sys.exit(1)
             return None
 
     def initialize_conversation_states(self, state_data):

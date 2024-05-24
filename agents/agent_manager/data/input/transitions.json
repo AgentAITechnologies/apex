@@ -1,10 +1,10 @@
 [
-    { "trigger": "routeAction", "source": "AwaitIPC", "dest": "RouteAction" },
+    { "trigger": "RouteAction", "source": "AwaitIPC", "dest": "RouteAction" },
 
-    { "trigger": "createAgent", "source": "RouteAction", "dest": "CreateAgent" },
-    { "trigger": "epsilon", "source": "CreateAgent", "dest": "AwaitIPC" },
+    { "trigger": "CreateAgent", "source": "RouteAction", "dest": "CreateAgent" },
+    { "trigger": "AwaitIPC", "source": "CreateAgent", "dest": "AwaitIPC" },
 
-    { "trigger": "assignAgent", "source": "RouteAction", "dest": "AssignAgent" },
-    { "trigger": "epsilon", "source": "AssignAgent", "dest": "AwaitIPC" }
+    { "trigger": "AssignAgent", "source": "RouteAction", "dest": "AssignAgent" },
+    { "trigger": "AwaitIPC", "source": "AssignAgent", "dest": "AwaitIPC" }
 
 ]

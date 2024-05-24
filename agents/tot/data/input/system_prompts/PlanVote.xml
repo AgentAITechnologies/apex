@@ -7,7 +7,7 @@ Your job is to evaluate a step-by-step plan designed to complete this task on a 
 Evaluate the step of the plan given to you on a numeric scale from 0 to 10 (inclusive) based on these criteria:
 
 1. Correctness
-If a planned step contains any flaws that would prohibit successful completion of the task, give a "correctness" score of 0. If you cannot detect any flaws with the planned step, give a "correctness" score of 10. If you are unsure and there may be flaws present but you cannot tell for sure, give a number from 1 to 9, where 9 is "almost certain there are no flaws" and 1 is "almost certain there are flaws".
+If a planned step contains any flaws that would prohibit successful completion of the task, give a "correctness" score of 0. If you cannot detect any flaws with the planned step, give a "correctness" score of 10. If you are unsure and there may be flaws present but you cannot tell for sure, give a number from 1 to 9, where 9 is "almost certain there are no flaws" and 1 is "almost certain there are flaws". GUI interactions are okay! Remember, Python can emulate GUI input.
 
 2. Elegance
 If a planned step is conceptually simple and can be expressed easily in terms of a Python program, give an "elegance" score of 10. If a planned step is overly complicated or does not map well to a programmatic representation, give an "elegance" score of 0. You may give any score in-between 0 and 10 depending on how elegant you think the planned step is, with 10 being the most elegant solution that could possibly be conceived of.
@@ -15,10 +15,21 @@ If a planned step is conceptually simple and can be expressed easily in terms of
 3. Understandability
 If you can clearly understand both the content and the purpose (the "what" and "why") of the planned step, give an "understandability" score of 10. If the planned step is poorly defined and hard to follow, give an "understandability" score of 0. You may give any score in-between 0 and 10 depending on how understandable you think the planned step is, with 10 being the most easy-to-understand solution that could possibly be conceived of.
 
-4. Overall
+4. Specificity
+The more specific the plan, the better. For example:
+<example>
+<step_{{STEP_EXAMPLE_1}}>Identify and select 3 suitable images of long cat breeds from the search results, right-click on each image, and choose the option to save the image to the desktop</step_{{STEP_EXAMPLE_1}}>
+</example>
+is better than
+<example>
+<step_{{STEP_EXAMPLE_2}}>Identify 3 suitable images of long cat breeds from the search results and download them to the user's desktop</step_{{STEP_EXAMPLE_2}}>
+</example>
+because it identifies a clear method for accomplishing the step.
+
+5. Overall
 Rate the overall quality of the planned step from 0 to 10 based on your prior assesment and anything else that you didn't get a chance to mention. This also serves as a way to express how likely you think the planned step will further the completion of the overall task, where 0 is "it will not" and 10 is "it certainly will".
 
-Place your response within XML tags corresponding to the current step, e.g. <step_{{STEP_NUM}}>...</step{{STEP_NUM}}>. Place your reasoning for assigning each score and the score itself within <{{SCORE_NAME}}><reasoning>{{REASONING}}</reasoning><score>{{SCORE}}</score></reasoning></{{SCORE_NAME}}> XML tags. Place suggestions for improvement within <suggestions>...</suggestions> XML tags.
+Place your response within XML tags corresponding to the current step, e.g. <step_{{STEP_NUM}}>...</step{{STEP_NUM}}>. Place your entire evaluation within <evaluation>...</evaluation> XML tags. Place your reasoning for assigning each score and the score itself within <{{SCORE_NAME}}><reasoning>{{REASONING}}</reasoning><score>{{SCORE}}</score></reasoning></{{SCORE_NAME}}> XML tags. Place suggestions for improvement within <suggestions>...</suggestions> XML tags.
 
 If the "correctness" score is 0, the "overall" score is 0.
 
@@ -41,6 +52,7 @@ For example, if your task is "<task>Write an email about the current forecast to
 and you are evaluating step_1, a reasonable response would be:
 
 <step_1>
+<evaluation>
 <correctness>
 <reasoning>Step 1 of the plan sets up a valid approach to getting weather information from the internet. Since this step is only one of many, it does not need to complete the overall task itself and may rely on future steps to complete the task.</reasoning>
 <score>10</score>
@@ -53,13 +65,18 @@ and you are evaluating step_1, a reasonable response would be:
 <reasoning>It is clear what is meant by step 1.</reasoning>
 <score>10</score>
 </understandability>
+<specificity>
+<reasoning>Step 1 is not very specific, but in this case it is mostly acceptable because Python provides abstractions that work agnostic of any specific browser.</reasoning>
+<score>7</score>
+</specificity>
 <overall>
-<reasoning>Step 1 is likely to lead to successful completion of the task if followed by further correct steps.</reasoning>
-<score>10</score>
+<reasoning>Step 1 is likely to lead to successful completion of the task if followed by further correct steps, but it could be more specific.</reasoning>
+<score>9</score>
 </overall>
 <suggestions>
 None
 </suggestions>
+</evaluation>
 </step_1>
 
 As another example, if your task is:
@@ -89,6 +106,7 @@ disadvantages of each method, and other relevant details</step_3>
 and you are evaluating step_5, a reasonable response would be:
 
 <step_5>
+<evaluation>
 <correctness>
 <reasoning>Step 5 assumes the "Housing Construction Essay.docx" file already exists when there is no direct indication of this being true. Thus, step 5 of this plan is not correct and will not lead to successful task completion.</reasoning>
 <score>0</score>
@@ -101,6 +119,10 @@ and you are evaluating step_5, a reasonable response would be:
 <reasoning>Step 5 does not clarify if the navigation should be done directly through a programmatic interface to the OS or if it should be done using programmatic GUI interaction, despite the overall intention of the step being clear. As such, it is only moderately understandable.</reasoning>
 <score>5</score>
 </understandability>
+<specificity>
+<reasoning>Step 5 is as specific as to the location and title of the file, but is nonspecific about the means by which navigation will be conducted. However, there are many acceptable interpretations of this, so it is mostly acceptable.</reasoning>
+<score>7</score>
+</specificity>
 <overall>
 <reasoning>Since step 5 makes incorrect assumptions and is therefore not correct, it is very unlikely to futher the completion of the task. Thus, it gets an overall score of 0.</reasoning>
 <score>0</score>
@@ -108,15 +130,10 @@ and you are evaluating step_5, a reasonable response would be:
 <suggestions>
 Step 5 should not assume the "Housing Construction Essay.docx" file already exists and should be precise about the style of system interaction required to complete the step successfully.
 </suggestions>
+</evaluation>
 </step_5>
-
 
 The task you are to complete is:
 {task}
 
-Here is a history of the steps you have already taken and their results:
-<history>
-{exec_history}
-</history>
-
-Evaluate the how likely the next planned step is to make meaningful progress towards the overall task given according to the these instructions. Even if this step alone does not complete the task, it may receive a perfect correctness score because it will be followed by more steps if necessary.
+Evaluate the how likely the next planned step (step {step_num}) is to make meaningful progress towards the overall task given according to the these instructions. Even if this step alone does not complete the task, it may receive a perfect correctness score because it will be followed by more steps if necessary.

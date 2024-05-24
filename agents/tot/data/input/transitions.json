@@ -1,11 +1,13 @@
 [
 
     { "trigger": "PlanVote", "source": "Plan", "dest": "PlanVote" },
+    { "trigger": "Propose", "source": "Plan", "dest": "Propose" },
     { "trigger": "SumPlanVotes", "source": "PlanVote", "dest": "SumPlanVotes" },
     { "trigger": "ChoosePlan", "source": "SumPlanVotes", "dest": "ChoosePlan" },
     { "trigger": "Propose", "source": "ChoosePlan", "dest": "Propose" },
 
     { "trigger": "ProposeVote", "source": "Propose", "dest": "ProposeVote" },
+    { "trigger": "Exec", "source": "Propose", "dest": "Exec" },
     { "trigger": "SumProposeVotes", "source": "ProposeVote", "dest": "SumProposeVotes" },
     { "trigger": "ChooseProposition", "source": "SumProposeVotes", "dest": "ChooseProposition" },
     { "trigger": "Exec", "source": "ChooseProposition", "dest": "Exec" },
@@ -14,9 +16,12 @@
     { "trigger": "ExecVote", "source": "Exec", "dest": "ExecVote" },
 
     { "trigger": "PlanVote", "source": "PlanErrorFix", "dest": "PlanVote" },
+    { "trigger": "Propose", "source": "PlanErrorFix", "dest": "Propose" },
     { "trigger": "SumExecVote", "source": "ExecVote", "dest": "SumExecVote" },
     
     { "trigger": "Plan", "source": "SumExecVote", "dest": "Plan" },
-    { "trigger": "Done", "source": "SumExecVote", "dest": "Done" }
+    { "trigger": "Done", "source": "SumExecVote", "dest": "Done" },
+
+    { "trigger": "Plan", "source": "Done", "dest": "Plan" }
 
 ]

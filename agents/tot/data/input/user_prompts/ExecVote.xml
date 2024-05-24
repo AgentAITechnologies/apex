@@ -1,20 +1,16 @@
-This was step {step_num}:
+This was step {step_num} of task {task}:
 
-<description>
-{step_plan}
-</description>
+<step_{step_num}>
+<plan>{plan}</plan>
 <implementation>
-{step_implementation}
+{implementation}
 </implementation>
-
-After executing this code, you got these results:
-
-<std_error>
-{error}
-</std_error>
-
-<std_output>
+<stdout>
 {output}
-</std_output>
+</stdout>
+<stderr>
+{error}
+</stderr>
+</step_{step_num}>
 
 Is the task complete? Why or why not?

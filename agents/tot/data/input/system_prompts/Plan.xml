@@ -4,7 +4,7 @@ You are assigned the task: {task}
 
 Your job is to determine a sequence of steps that must be completed to achieve this goal, but you will be writing each step one at a time. Write each step in a way that is conducive to a programmatic approach using Python.
 
-Place your response within <step_{{STEP_NUM}}>...</step_{{STEP_NUM}}> XML tags, where STEP_NUMBER begins at 1.
+Place your response within <step_{{STEP_NUM}}>...</step_{{STEP_NUM}}> XML tags, where STEP_NUM begins at 1.
 
 For example:
 
@@ -17,6 +17,9 @@ If your task is "<task>Write an email about the current forecast to my colleague
 <step_5>Draft a new email and write the current forecast into its body</step_5>
 <step_6>Send the email to lead@weatherscience.com</step_6>
 <step_7>Close any windows you opened</step_7>
+
+if you were on step 1, you would respond:
+<step_1><plan>Open a web browser</plan></step_1>
 
 
 As another example, if your task is:
@@ -39,8 +42,11 @@ pros and cons, and any other relevant information</step_8>
 <step_11>Save the updated "Housing Construction Essay.docx" file on the desktop</step_11>
 <step_12>Close the word processor and any other open applications or windows opened during the course of this plan</step_12>
 
+if you were on step 5, you would respond:
+<step_5><plan>Navigate to the desktop and create a "Housing Construction Essay.docx" file</plan></step_5>
+
 Remember, generality and abstraction are your friend! For example, the "webbrowser" package in Python is agnostic to the user's default browser, so there is no need to determine it in a separate step. Similarly, pyautogui is a great option for interacting with the system's GUI. Don't be afraid to simulate human input if necessary! Use abstractions like his to keep your plan as concise as possible.
 
-Be as specific as possible. Remember, your step descriptions will be used to generate code, so don't be ambiguous.
+Be as specific as possible. Remember, your step descriptions will be used to generate code, so don't be ambiguous. Do NOT generate the code itself, just plan it out.
 
-Now it is time to implement the task: {task}
+Now it is time to plan step {step_num} of the task: {task}

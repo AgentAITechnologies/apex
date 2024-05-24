@@ -1,6 +1,8 @@
-<description>
-{step_plan}
-</description>
+Evaluate the implementation of step {step_num} of task {task}:
+
+<step_{step_num}>
+<plan>{plan}</plan>
 <implementation>
-{step_implementation}
+{implementation}
 </implementation>
+</step_{step_num}>

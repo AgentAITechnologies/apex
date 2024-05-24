@@ -30,26 +30,7 @@ class PrintUIMessage_Callback(StateCallback):
     def on_enter(self, csm, locals):
         print(f"{self.PRINT_PREFIX} Entering PrintUIMessage")
         # Perform actions when entering PrintUIMessage
-        self = locals["self"]
-        client = locals["client"]
-
-        prompts = self.memory.load_all_prompts(self.csm.current_state.get_hpath(), "UI_DIR", dynamic_user_metaprompt=" > ", frmt=None)
-
-        llm_response = self.csm.current_state.llm_call(client=client,
-                                        formatted_system=prompts["system"],
-                                        formatted_messages=prompts["messages"],
-                                        stop_sequences=["</output>"],
-                                        temperature=0.7)
-        
-        self.memory.store_llm_response("<output>" + llm_response.content[0].text + "</output>")
-
-        self.parsed_response = xmlstr2dict(llm_response.content[0].text)
-        print(f"{self.PRINT_PREFIX} self.parsed_response:")
-        print(self.parsed_response)
-
-        if os.environ.get("USE_TTS") == "True":
-            tts(self.parsed_response["response"])
-
+        pass
 
     def on_exit(self, csm, locals):
         print(f"{self.PRINT_PREFIX} Exiting PrintUIMessage")
@@ -60,21 +41,7 @@ class AssignAction_Callback(StateCallback):
     def on_enter(self, csm, locals):
         print(f"{self.PRINT_PREFIX} Entering AssignAction")
         # Perform actions when entering AssignAction
-
-        prior_state = csm.state_history[-1]
-        action = prior_state.result["action"]
-
-        agent_manager = locals["self"].agent_manager
-        
-        # Should always be True
-        if action:
-            print(f"{self.PRINT_PREFIX} action: {action}")
-            agent_manager.ipc("routeAction", {"action": action})
-            csm.transition("epsilon", locals)
-        else:
-            print(f"[red][bold]{self.PRINT_PREFIX} prior_state {prior_state.get_hpath()} did not have an action[/bold][/red]")
-            sys.exit(1)
-        
+        pass     
 
     def on_exit(self, csm, locals):
         print(f"{self.PRINT_PREFIX} Exiting AssignAction")

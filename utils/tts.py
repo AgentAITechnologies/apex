@@ -9,7 +9,7 @@ from pydub.playback import play
 dotenv.load_dotenv()
 
 def tts(text):
-    LATENCY_LEVEL = 0
+    LATENCY_LEVEL = int(os.environ.get("ELEVENLABS_LATENCY_LEVEL"))
 
     url = f'https://api.elevenlabs.io/v1/text-to-speech/{os.environ.get("ELEVENLABS_VOICE_ID")}/stream?optimize_streaming_latency={LATENCY_LEVEL}'
 

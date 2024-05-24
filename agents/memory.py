@@ -1,14 +1,17 @@
 import os
-import sys
 import keyboard
-import glob
 from typing import Optional
 import dotenv
 
 from rich import print
 
-from anthropic.types.message import Message
+from anthropic.types.message import Message as AnthropicMessage
 
+from agents.prompt_management import load_all_prompts, load_system_prompt, load_user_prompt, load_assistant_prefill, get_msg
+
+from utils.types import Message
+from utils.enums import Role
+from utils.parsing import files2dict
 from utils.stt import transcribe_speech, REC_KEY
 
 
@@ -17,106 +20,52 @@ dotenv.load_dotenv()
 
 class Memory:
     PRINT_PREFIX = "[bold][MEMORY][/bold]"
-    def __init__(self, file_ext: str = ".xml", prefix: str | None = None):
+    def __init__(self, environ_path_key: Optional[str] = None, file_ext: str = ".xml", prefix: Optional[str] = None):
         if prefix:
             self.PRINT_PREFIX = f"{self.PRINT_PREFIX} {prefix}"
 
         self.file_ext = file_ext
 
-        self.conversation_history: list[dict] = []
-        self.sys_prompt_history: list[str] = []
+        self.system_prompt: Optional[str] = None
 
-        self.global_frmt: dict = self.files2dict(os.path.join(os.environ.get("UI_DIR"), os.environ.get("INPUT_DIR"), os.environ.get("GLOBAL_FRMT_DIR")), file_ext)
-        self.persistence: dict = self.files2dict(os.path.join(os.environ.get("UI_DIR"), os.environ.get("INPUT_DIR"), os.environ.get("PERSISTENCE_DIR")), file_ext)
+        self.conversation_history: list[dict] = []
+        self.system_prompt_history: list[str] = []
+
+        if environ_path_key:
+            self.global_frmt: dict = files2dict(os.path.join(os.environ.get(environ_path_key), os.environ.get("INPUT_DIR"), os.environ.get("GLOBAL_FRMT_DIR")), file_ext)
+            self.persistence: dict = files2dict(os.path.join(os.environ.get(environ_path_key), os.environ.get("INPUT_DIR"), os.environ.get("PERSISTENCE_DIR")), file_ext)
 
         self.results: dict[int, dict] = {}
-
-    def files2dict(self, path, extension: str) -> dict[str, str]:
-        retval = {}
-
-        source_files = glob.glob(os.path.join(path, f'*{extension}'))
-
-        for source_file in source_files:
-            with open(source_file, 'r') as f:
-                retval[os.path.basename(source_file).replace(extension, "")] = f.read()
-
-        return retval
     
-    def load_user_prompt(self, state_path: str, environ_path_key: str, dynamic_metaprompt: str, frmt: dict[str, str]) -> Optional[str]:
-        if dynamic_metaprompt:
-            use_stt = os.environ.get("USE_STT") == "True"
+    def prime_user_prompt(self, state_path: str, environ_path_key: str, dynamic_metaprompt: str, frmt: dict[str, str]) -> None:
+        user_prompt_text = load_user_prompt(state_path, environ_path_key, dynamic_metaprompt, frmt)
+        user_prompt_msg = get_msg(Role.USER, user_prompt_text)
 
-            if not use_stt:
-                print(dynamic_metaprompt, end="")
-                user_prompt = "<input>" + input() + "</input>"
-                self.add_msg(user_prompt, "user", frmt)
-            else:
-                print(dynamic_metaprompt, end="")
+        self.add_msg(user_prompt_msg)
 
-                while True:
-                    if keyboard.is_pressed(REC_KEY):
-                        user_input = transcribe_speech()
-                        break
-                
-                print(user_input)
-                user_prompt = "<input>" + user_input + "</input>"
-                self.add_msg(user_prompt, "user", frmt)
+    def prime_system_prompt(self, state_path: str, environ_path_key: str, frmt: dict[str, str]):
+        self.system_prompt = load_system_prompt(state_path, environ_path_key, frmt)
+
+        self.system_prompt_history.append(self.system_prompt)
         
-        else:
-            user_prompt_dir = os.path.join(os.environ.get(environ_path_key), os.environ.get("INPUT_DIR"), os.environ.get("USR_PRMPT_DIR"))
-            
-            if not os.path.exists(os.path.join(user_prompt_dir, state_path+self.file_ext)):
-                print(f"[red][bold]{self.PRINT_PREFIX} user prompt file does not exist, and no prompt was provided as arg: {state_path+self.file_ext}[/red][/bold]")
-            else:
-                with open(os.path.join(user_prompt_dir, state_path+self.file_ext), 'r') as f:
-                    user_prompt = f.read()
-                    self.add_msg(user_prompt, "user", frmt)
+    def prime_assistant_prefill(self, prefill):
+        self.add_msg(load_assistant_prefill(prefill))
 
-        return user_prompt
-
-    def load_sys_prompt(self, state_path: str, environ_path_key: str, frmt: dict[str, str]):
-        sys_prompt_dir = os.path.join(os.environ.get(environ_path_key), os.environ.get("INPUT_DIR"), os.environ.get("SYS_PRMPT_DIR"))
-
-        with open(os.path.join(sys_prompt_dir, state_path+self.file_ext), 'r') as f:
-            sys_prompt = f.read()
-
-        if frmt:
-            sys_prompt = sys_prompt.format(**frmt)
-            
-        self.sys_prompt_history.append(sys_prompt)
-
-        return sys_prompt
-
-    def load_assistant_prefill(self, prefill: str = "<output>"):
-        assistant_prefill = prefill
-        self.add_msg(assistant_prefill, "assistant", {})
-
-    def load_all_prompts(self, state_path: str, environ_path_key: str, dynamic_user_metaprompt: str, frmt: dict[str, str]) -> dict:
-        self.load_sys_prompt(state_path, environ_path_key, frmt)
-        
-        self.load_user_prompt(state_path, environ_path_key, dynamic_user_metaprompt, frmt)
-        self.load_assistant_prefill()
-
-        return {"system": self.sys_prompt_history[-1], "messages": self.conversation_history}
+    def prime_all_prompts(self, state_path: str, environ_path_key: str, dynamic_metaprompt: str = None, system_frmt: dict[str, str] = {}, user_frmt: dict[str, str] = {}, start_seq: str = "<output>") -> None:
+        self.prime_system_prompt(state_path, environ_path_key, system_frmt)
+        self.prime_user_prompt(state_path, environ_path_key, dynamic_metaprompt, user_frmt)
+        self.prime_assistant_prefill(start_seq)
 
     def store_llm_response(self, result: str):
-        if self.conversation_history[-1]["role"] == "assistant":
+        if self.conversation_history[-1]["role"] == Role.ASSISTANT.value:
             self.conversation_history[-1]["content"] = result
         else:
             print(f"[red][bold]{self.PRINT_PREFIX} Unexpected role at end of conversation: {self.conversation_history[-1]['role']}[/bold][/red]")
 
-    def add_msg(self, msg: str, role: str, frmt: dict[str, str]):
-        if frmt:
-            msg = msg.format(**frmt)
+    def add_msg(self, msg: Message) -> None:
+        self.conversation_history.append(msg)
 
-        msg_item = {
-            "role": role,
-            "content": msg
-        }
-
-        self.conversation_history.append(msg_item)
-
-    def add_msg_obj(self, msg_obj: Message, frmt: dict[str, str]):
+    def add_msg_obj(self, msg_obj: AnthropicMessage, frmt: dict[str, str]):
         msg = "".join([content_item.text for content_item in msg_obj.content])
 
         if frmt:

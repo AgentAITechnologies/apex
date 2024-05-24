@@ -14,7 +14,10 @@ from agents.agent import Agent
 from agents.state_management import ConversationStateMachine
 from agents.memory import Memory
 from agents.agent_manager.agent_manager import AgentManager
+
 from utils.parsing import xmlstr2dict
+from utils.tts import tts
+from utils.llm import llm_call
 
 
 class UI(Agent):
@@ -35,42 +38,50 @@ class UI(Agent):
 
         self.csm = ConversationStateMachine(state_data=state_data, transition_data=transition_data, init_state_path='Start', prefix=self.PRINT_PREFIX, owner_class_name="UI")
 
-        self.memory = Memory(prefix=self.PRINT_PREFIX)
+        self.memory = Memory(environ_path_key="UI_DIR", prefix=self.PRINT_PREFIX)
         self.agent_manager = AgentManager()
         self.agent_manager.register_agent(self)
 
         self.parsed_response = None
     
-    # revise this to have state logic here, not in callbacks
     def run(self, client):
         print("[bold][green]Welcome to [italic]Jarvis[/italic][/green][/bold]")
 
-        i = 0
         while self.csm.current_state.get_hpath() != "Exit":
-            print(f"{self.PRINT_PREFIX} Iteration {i}")
             print(f"{self.PRINT_PREFIX} self.csm.current_state.get_hpath(): {self.csm.current_state.get_hpath()}")
+                
+            match self.csm.current_state.get_hpath():
 
-            if i == 0: # here only to ensure printing can happen in a sensible order
-                self.csm.transition("start", locals())
+                case "Start":
+                    self.csm.transition("PrintUIMessage", locals())
 
-            trigger, result = self.match_trigger() # consumes self.parsed_response
-            print(f"{self.PRINT_PREFIX} trigger: {trigger}")
-            print(f"{self.PRINT_PREFIX} result: {result}")
+                case "PrintUIMessage":
+                    self.memory.prime_all_prompts(self.csm.current_state.get_hpath(), "UI_DIR", dynamic_metaprompt=" > ")
 
-            self.csm.current_state.result = result
-            self.csm.transition(trigger, locals())
+                    llm_response = llm_call(client=client,
+                                                                    formatted_system=self.memory.system_prompt,
+                                                                    formatted_messages=self.memory.conversation_history,
+                                                                    stop_sequences=["</output>"],
+                                                                    temperature=0.7)
+                    
+                    self.memory.store_llm_response("<output>" + llm_response.content[0].text + "</output>")
 
-            i += 1
-        
-    def match_trigger(self) -> tuple[str, Optional[dict]]:
-        if not self.parsed_response:
-            print(f"[red][bold]{self.PRINT_PREFIX} parsed_response is empty[/bold][/red]")
-            sys.exit(1)
-        else:
-            parsed_response = self.parsed_response
-            self.parsed_response = None
+                    parsed_response = xmlstr2dict(llm_response.content[0].text)
+                    print(f"{self.PRINT_PREFIX} parsed_response:")
+                    print(parsed_response)
 
-            if "action" in parsed_response and parsed_response["action"]:
-                return "actionNotNone", {"action": parsed_response["action"]}
-            else:
-                return "actionNone", None
+                    if os.environ.get("USE_TTS") == "True":
+                        tts(parsed_response["response"])
+
+                    if "action" in parsed_response and parsed_response["action"]:
+                        action = parsed_response["action"]
+                        self.csm.transition("AssignAction", locals())
+
+                case "AssignAction":
+                    if action:
+                        print(f"{self.PRINT_PREFIX} action: {action}")
+                        self.agent_manager.ipc("RouteAction", {"action": action})
+                        self.csm.transition("PrintUIMessage", locals)
+                    else:
+                        print(f"[red][bold]{self.PRINT_PREFIX} no action to assign[/bold][/red]")
+                        sys.exit(1)
