@@ -6,6 +6,8 @@ import sys
 from copy import deepcopy
 from typing import Optional
 
+import dotenv
+
 import pygraphviz as pgv
 from rich import print
 
@@ -15,11 +17,13 @@ from agents.agent_manager.callbacks import *
 
 from anthropic import Anthropic
 
-# %%
+
 class ConversationState:
     PRINT_PREFIX = "[bold][CS][/bold]"
 
     def __init__(self, name=None, parent: Optional[ConversationState] = None, system="", messages=[], frmt={}, prefix=""):
+        dotenv.load_dotenv()
+
         if prefix:
             self.PRINT_PREFIX = f"{prefix} {self.PRINT_PREFIX}"
         

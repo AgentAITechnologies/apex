@@ -7,7 +7,9 @@ import wave
 
 import dotenv
 
+
 dotenv.load_dotenv()
+
 
 # Set up OpenAI API credentials
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))

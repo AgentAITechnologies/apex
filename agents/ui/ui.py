@@ -59,14 +59,14 @@ class UI(Agent):
                     self.memory.prime_all_prompts(self.csm.current_state.get_hpath(), "UI_DIR", dynamic_metaprompt=" > ")
 
                     llm_response = llm_call(client=client,
-                                                                    formatted_system=self.memory.system_prompt,
-                                                                    formatted_messages=self.memory.conversation_history,
-                                                                    stop_sequences=["</output>"],
-                                                                    temperature=0.7)
+                                            formatted_system=self.memory.system_prompt,
+                                            formatted_messages=self.memory.conversation_history,
+                                            stop_sequences=["</output>"],
+                                            temperature=0.7)
                     
                     self.memory.store_llm_response("<output>" + llm_response.content[0].text + "</output>")
 
-                    parsed_response = xmlstr2dict(llm_response.content[0].text)
+                    parsed_response = xmlstr2dict(llm_response.content[0].text, client)
                     print(f"{self.PRINT_PREFIX} parsed_response:")
                     print(parsed_response)
 

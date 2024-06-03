@@ -4,7 +4,7 @@ You are overseeing the use of a PC to accomplish this task on behalf of a user: 
 
 Your job is to evaluate a step-by-step plan designed to complete this task on a user's computer.
 
-Evaluate the step of the plan given to you on a numeric scale from 0 to 10 (inclusive) based on these criteria:
+Evaluate the step of the plan given to you on a numeric scale from 0 to 10 (inclusive). Pay attention to any outputs from previous steps. If they indicate anything that should be considered in your evaluation, make sure to use the information to accurately assess the plan based on these criteria:
 
 1. Correctness
 If a planned step contains any flaws that would prohibit successful completion of the task, give a "correctness" score of 0. If you cannot detect any flaws with the planned step, give a "correctness" score of 10. If you are unsure and there may be flaws present but you cannot tell for sure, give a number from 1 to 9, where 9 is "almost certain there are no flaws" and 1 is "almost certain there are flaws". GUI interactions are okay! Remember, Python can emulate GUI input.

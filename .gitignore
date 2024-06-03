@@ -16,5 +16,4 @@ __pycache__/
 prototyping/
 
 # generated output
-data/output/
-agents/ui/data/output/
+output/

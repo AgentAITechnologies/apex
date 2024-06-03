@@ -6,5 +6,4 @@
 
     { "trigger": "AssignAgent", "source": "RouteAction", "dest": "AssignAgent" },
     { "trigger": "AwaitIPC", "source": "AssignAgent", "dest": "AwaitIPC" }
-
 ]

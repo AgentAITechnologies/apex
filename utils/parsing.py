@@ -14,7 +14,9 @@ from agents.prompt_management import get_msg
 
 from anthropic import Anthropic
 
+
 PRINT_PREFIX = "[bold][Parsing][/bold]"
+
 
 def files2dict(path, extension: str) -> dict[str, str]:
     retval = {}
@@ -27,23 +29,24 @@ def files2dict(path, extension: str) -> dict[str, str]:
 
     return retval
 
-def xmlstr2dict(xml_string: str, client: Optional[Anthropic] = None) -> dict:
+def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
     try:
         xml_string = xml_string.strip()
         xml_string = f"<root>{xml_string}</root>"
         root = ET.fromstring(xml_string)
 
     except ET.ParseError:
-        if client:
+        if depth < 6:
             print(f"{PRINT_PREFIX} [yellow][bold]Error parsing XML:\n{xml_string}[/bold][/yellow]")
             print(f"{PRINT_PREFIX} [yellow][bold]Attempting fix...[/bold][/yellow]")
 
             system_prompt = """You are an expert in the field of programming, and are especially good at finding mistakes XML files.
-Make sure there are no mistakes in the XML file, such as invalid characters, missing or unclosed tags, etc.
-You may also want to make sure that the XML file is well-formed.
-Make sure the tag pairs that were given remain and are balanced.
-If there are unclosed tags used as section titles, you should close them."""
-            user_prompt = f"Fix the following XML file according to the given instructions:\n{xml_string}\n"
+    Make sure there are no mistakes in the XML file, such as invalid characters, missing or unclosed tags, etc.
+    You may also want to make sure that the XML file is well-formed.
+    Make sure the tag pairs that were given remain and are balanced.
+    If there are any singleton tags, you should close them or replace them with an equivalent description."""
+            user_prompt = f"Fix the following XML file according to the given instructions. Be especially vigilant for singleton tags:\n{xml_string}\n"
+            
             assistant_prompt = "<root>"
             stop_seq = "</root>"
 
@@ -53,11 +56,11 @@ If there are unclosed tags used as section titles, you should close them."""
                                 prompts={"system": system_prompt,
                                         "messages": messages},
                                 stop_sequences=[stop_seq],
-                                temperature=0.7)
+                                temperature=1.0)
 
-            return xmlstr2dict(fixed_xml, client)
+            return xmlstr2dict(fixed_xml, client, depth + 1)
         else:
-            print(f"{PRINT_PREFIX} [red][bold]Error parsing XML, and no client passed:\n{xml_string}[/bold][/red]")
+            print(f"{PRINT_PREFIX} [red][bold]Error parsing XML, and fix attempt limit of {depth+1} reached:\n{xml_string}[/bold][/red]")
             exit(1)
     
     def parse_element(element: ET.Element) -> Optional[dict]:
@@ -97,13 +100,13 @@ def dict2xml(d, tag="root"):
     return elem
 
 def xml2xmlstr(xml, no_root=True):
-    def extract_root_xmlstr(xml_str, root_str):
-        # Pattern to find content within <root></root>
-        pattern = rf"<{root_str}>(.*?)</{root_str}>"
-        # Search using the pattern
-        match = re.search(pattern, xml_str)
-        # Return the matched group if found
-        return match.group(1) if match else None
+    def extract_root_xmlstr(xml_str: str, root_str):
+        xml_str = xml_str.strip()
+        open_tag, close_tag = f"<{root_str}>", f"</{root_str}>"
+
+        match = xml_str[xml_str.find(open_tag)+len(open_tag):xml_str.find(close_tag)]
+
+        return match.strip()
     
     if no_root:
         return extract_root_xmlstr(ET.tostring(xml, encoding="unicode"), xml.tag)
@@ -144,14 +147,3 @@ def extract_steps(xml_string):
     # Convert each match to a tuple of (step number as int, step text)
     results = [f"<step_{step}>{text.strip()}</step_{step}>" for step, text in matches]
     return results
-    
-'''
-def extract_steps(xml_string):
-    # Pattern matches the text within step tags and the step numbers
-    pattern = r"<step_(\d+)>(.*?)</step_\1>"
-    # Find all matches in the provided XML string
-    matches = re.findall(pattern, xml_string, re.DOTALL)
-    # Convert each match to a tuple of (step number as int, step text)
-    results = [(int(step), text.strip()) for step, text in matches]
-    return results
-'''

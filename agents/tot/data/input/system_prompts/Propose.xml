@@ -57,4 +57,6 @@ Do NOT ask for human input. Do EVERYTHING yourself!
 
 Don't be afraid to simulate human input if necessary!
 
+Every step builds on the last. In other words, you are in control of a stateful session. Reuse code and prior assignments where possible.
+
 Make sure to enclose your Python code in a fenced Markdown code block.

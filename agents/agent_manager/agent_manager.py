@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import sys
 import dotenv
 
@@ -12,10 +13,11 @@ from agents.state_management import ConversationStateMachine
 from agents.memory import Memory
 from agents.tot.tot import ToT
 
-from anthropic import Anthropic
-
 from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict
 from utils.llm import llm_call
+
+from anthropic import Anthropic
+
 
 class AgentManager():
     PRINT_PREFIX = "[bold][AgentMgr][/bold]"
@@ -39,6 +41,9 @@ class AgentManager():
     def __init__(self, client=None, prefix: str = ""):
         if not self.__initialized:
             dotenv.load_dotenv()
+            
+            if os.path.exists(os.environ.get("SESSIONS_DIR")):
+                shutil.rmtree(os.environ.get("SESSIONS_DIR"))
 
             self.agents: list[Agent] = []
 
@@ -94,7 +99,7 @@ class AgentManager():
                     self.memory.store_llm_response("<output>" + llm_response.content[0].text + "</output>")
                     print(f"{self.PRINT_PREFIX} llm_response:\n{llm_response}")
 
-                    agent_selection = xmlstr2dict(llm_response.content[0].text)
+                    agent_selection = xmlstr2dict(llm_response.content[0].text, self.client)
                     print(f"{self.PRINT_PREFIX} agent_selection:\n{agent_selection}")
 
                     if not agent_selection['name']:
@@ -115,14 +120,18 @@ class AgentManager():
                     
                     self.memory.store_llm_response("<output>" + llm_response.content[0].text + "</output>")
 
-                    new_agent_info = xmlstr2dict(llm_response.content[0].text)
+                    new_agent_info = xmlstr2dict(llm_response.content[0].text, self.client)
                     print(f"{self.PRINT_PREFIX} new_agent_info:\n{new_agent_info}")
 
                     print(f"{self.PRINT_PREFIX} Creating agent: {new_agent_info['name']}")
 
-                    self.create_agent(name=new_agent_info['name'],
-                                        description=new_agent_info['description'],
-                                        tasks=[action_xmlstr])
+                    new_agent = ToT(name=new_agent_info['name'],
+                                    description=new_agent_info['description'],
+                                    client=self.client)
+                    
+                    self.register_agent(new_agent)
+
+                    new_agent.run(action_xmlstr)
                     
                     self.csm.transition("AwaitIPC", locals())
                     
@@ -135,17 +144,9 @@ class AgentManager():
             
                     for agent in self.agents:
                         if agent.name == agent_selection['name']:
-
-                            agent.tasks.append(action_xmlstr)
-                            agent.run()
-
+                            agent.run(action_xmlstr)
                             self.csm.transition("AwaitIPC", locals)
-
                             break
-
-    def create_agent(self, name: str, description: str, tasks: list[dict]):
-        agent = ToT(name=name, description=description, tasks=tasks, client=self.client)
-        self.register_agent(agent)
 
     def register_agent(self, agent: Agent):
         print(f"{self.PRINT_PREFIX} Registering agent: {agent.name}")

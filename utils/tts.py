@@ -6,7 +6,9 @@ from io import BytesIO
 from pydub import AudioSegment
 from pydub.playback import play
 
+
 dotenv.load_dotenv()
+
 
 def tts(text):
     LATENCY_LEVEL = int(os.environ.get("ELEVENLABS_LATENCY_LEVEL"))

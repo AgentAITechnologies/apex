@@ -6,10 +6,12 @@ import json
 from copy import deepcopy
 from typing import Any, Optional
 
-from rich import print
+import dotenv
+
+from rich import print as rprint
 
 from agents.state_management import ConversationStateMachine
-from agents.execution_management import CodeExecutor
+from agents.execution_management.execution_management import CodeExecutor
 from agents.prompt_management import load_system_prompt, load_user_prompt, get_msg
 
 from agents.memory import Memory
@@ -36,30 +38,33 @@ TEMP = 0.7
 class ToT():
     PRINT_PREFIX = "[blue][bold][ToT][/bold][/blue]"
 
-    def __init__(self, name, description, tasks, client: Anthropic):
-        self.name = name
+    def __init__(self, name: str, description, client: Anthropic):
+        dotenv.load_dotenv()
+
+        self.name: str = name
         self.description = description
-        self.tasks = tasks
         self.client = client
+
+        self.tasks = []
 
         with open(os.path.join(os.environ.get("TOT_DIR"), os.environ.get("INPUT_DIR"), "states.json")) as file:
             state_data = json.load(file)
-            print(f"{self.PRINT_PREFIX} loaded state_data")
+            rprint(f"{self.PRINT_PREFIX} loaded state_data")
 
         with open(os.path.join(os.environ.get("TOT_DIR"), os.environ.get("INPUT_DIR"), "transitions.json")) as file:
             transition_data = json.load(file)
-            print(f"{self.PRINT_PREFIX} loaded transition_data")
+            rprint(f"{self.PRINT_PREFIX} loaded transition_data")
 
         self.csm = ConversationStateMachine(state_data=state_data, transition_data=transition_data, init_state_path="Plan", prefix=self.PRINT_PREFIX, owner_class_name="ToT")
 
-        self.code_executor = CodeExecutor(self.PRINT_PREFIX)
+        self.code_executor = CodeExecutor(prefix=self.PRINT_PREFIX, owner_name=self.name)
 
         self.unified_memory = Memory(prefix=self.PRINT_PREFIX)
         self.unified_steps = []
-
-        self.run()
     
-    def run(self):
+    def run(self, task):
+        self.tasks.append(task)
+
         if self.csm.current_state.name == "Done":
             self.csm.transition("Plan", locals())
 
@@ -75,7 +80,7 @@ class ToT():
             match state_path:
                 
                 case "Plan":
-                    frmt = {"step_num": self.step_num, "task": self.tasks[-1]}
+                    frmt = {"step_num": self.step_num, "task": task}
 
                     system_prompt = load_system_prompt(state_path, "TOT_DIR", frmt)      
                     user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, frmt))
@@ -101,14 +106,14 @@ class ToT():
 
                 case "PlanVote":
                     system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": self.step_num,
-                                                                               "task": self.tasks[-1]})
+                                                                               "task": task})
                     
                     plan_vote_strs: dict[str, list[str]] = {}
 
                     for plan_candidate in plan_candidates:
 
                         user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": self.step_num,
-                                                                                                        "task": self.tasks[-1],
+                                                                                                        "task": task,
                                                                                                         "plan": plan_candidate}))
 
                         start_seq = self.open_step_tag + "<evaluation>"
@@ -141,10 +146,11 @@ class ToT():
 
                     self.csm.transition("Propose", locals())
             
+                # TODO: Modify to detect cals to input(), translate into UI agent ipc and injected parameters
                 case "Propose":
-                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": self.tasks[-1]})
+                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": task})
                     user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": self.step_num,
-                                                                                                    "task": self.tasks[-1],
+                                                                                                    "task": task,
                                                                                                     "plan": self.unified_step['best_plan']}))
                     
                     start_seq = self.open_step_tag + "<implementation>" + "\n" + "```python"
@@ -174,7 +180,7 @@ class ToT():
                         self.csm.transition("Exec", locals())
 
                 case "ProposeVote":
-                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": self.tasks[-1]})
+                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": task})
                     
                     start_seq = self.open_step_tag + "<evaluation>"
                     assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
@@ -183,7 +189,7 @@ class ToT():
                     
                     for proposal in self.unified_step['proposals']:
                         user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": self.step_num,
-                                                                                                    "task": self.tasks[-1],
+                                                                                                     "task": task,
                                                                                                      "plan": self.unified_step['best_plan'],
                                                                                                      "implementation": proposal}))
                         
@@ -221,46 +227,27 @@ class ToT():
                     
                     parsed_code = extract_language_and_code(fenced_code)
                     if not parsed_code:
-                        print(f"[red][bold]{self.PRINT_PREFIX} code not parsable:\n{fenced_code}[/bold][/red]")
+                        rprint(f"[red][bold]{self.PRINT_PREFIX} code not parsable:\n{fenced_code}[/bold][/red]")
                         exit(1)
                     
                     language, code = parsed_code
 
-                    print(f"{self.PRINT_PREFIX} executing code:")
+                    rprint(f"{self.PRINT_PREFIX} executing code:")
+                    print(code.strip())
 
-                    output, error = "", ""
+                    self.code_executor.write_code_step_file(code, self.step_num)
 
-                    code_chunks = []
-                    curr_chunk = ""
+                    stdout, stderr = self.code_executor.execute_code_step(self.step_num)
 
-                    for line in code.splitlines():
-                        if "import" in line:
-                            if curr_chunk:
-                                code_chunks.append(curr_chunk.strip())
-                                curr_chunk = ""
-                            code_chunks.append(line)
-                        else:
-                            curr_chunk += line + "\n"
-                    if curr_chunk:
-                        code_chunks.append(curr_chunk.strip())
+                    rprint(f"{self.PRINT_PREFIX} stdout:")
+                    print(stdout, end='')
+                    rprint(f"{self.PRINT_PREFIX} stderr:")
+                    print(stderr, end='')
 
-                    for code_chunk in code_chunks:
-                        print(code_chunk)
+                    self.unified_step['output'] = stdout
+                    self.unified_step['error'] = stderr
 
-                        result = self.code_executor.execute_code(code_chunk)
-
-                        if result[0]:
-                            print(f"{self.PRINT_PREFIX} output:\n{result[0]}")
-                        if result[1]:
-                            print(f"{self.PRINT_PREFIX} error:\n{result[1]}")
-
-                        output += result[0]
-                        error += result[1]
-
-                    self.unified_step['output'] = output
-                    self.unified_step['error'] = error
-
-                    if error:
+                    if stderr:
                         self.next_step()
                         self.csm.transition("PlanErrorFix", locals())
 
@@ -270,7 +257,7 @@ class ToT():
                 case "PlanErrorFix":
                     previous_step = self.unified_steps[-1]
 
-                    frmt = {"step_num": self.step_num, "task": self.tasks[-1], "error": previous_step['error'], "output": previous_step['output']}
+                    frmt = {"step_num": self.step_num, "task": task, "error": previous_step['error'], "output": previous_step['output']}
 
                     system_prompt = load_system_prompt(state_path, "TOT_DIR", frmt)      
                     user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, frmt))
@@ -295,13 +282,13 @@ class ToT():
                         self.csm.transition("Propose", locals())
 
                 case "ExecVote":
-                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": self.tasks[-1]})
+                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": task})
                     user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": self.step_num,
-                                                                                                    "task": self.tasks[-1],
-                                                                                                     "plan": self.unified_step['best_plan'],
-                                                                                                     "implementation": self.unified_step['best_proposition'],
-                                                                                                     "output": self.unified_step['output'],
-                                                                                                     "error": self.unified_step['error']}))
+                                                                                                    "task": task,
+                                                                                                    "plan": self.unified_step['best_plan'],
+                                                                                                    "implementation": self.unified_step['best_proposition'],
+                                                                                                    "output": self.unified_step['output'],
+                                                                                                    "error": self.unified_step['error']}))
                     
                     start_seq = self.open_step_tag + "<evaluation>"
                     assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
@@ -332,7 +319,10 @@ class ToT():
                         self.next_step()
                         self.csm.transition("Plan", locals())
 
-        print(f"{self.PRINT_PREFIX} done!")
+        self.code_executor.finalize_task(task)
+
+        rprint(f"{self.PRINT_PREFIX} done!")
+
         return
     
     def next_step(self):
@@ -382,7 +372,7 @@ class ToT():
                     if category not in omit_categories:
                         avg_scores[step_plan][category] += int(score[category]['score']) / VOTER_COUNT
 
-        print(f"{self.PRINT_PREFIX} avg_scores:\n{avg_scores}")
+        rprint(f"{self.PRINT_PREFIX} avg_scores:\n{avg_scores}")
         
         return avg_scores
     
@@ -399,8 +389,8 @@ class ToT():
 
         avg_yes_votes = sum_yes_votes / VOTER_COUNT
         
-        print(f"{self.PRINT_PREFIX} sum_yes_votes: {sum_yes_votes}")
-        print(f"{self.PRINT_PREFIX} avg_yes_votes: {avg_yes_votes}")
+        rprint(f"{self.PRINT_PREFIX} sum_yes_votes: {sum_yes_votes}")
+        rprint(f"{self.PRINT_PREFIX} avg_yes_votes: {avg_yes_votes}")
         
         return avg_yes_votes
 
@@ -416,7 +406,7 @@ class ToT():
 
         best, best_scores = avg_scores_sorted[0]
 
-        print(f"{self.PRINT_PREFIX} best:\n{best}")
-        print(f"{self.PRINT_PREFIX} best_scores:\n{best_scores}")
+        rprint(f"{self.PRINT_PREFIX} best:\n{best}")
+        rprint(f"{self.PRINT_PREFIX} best_scores:\n{best_scores}")
 
         return best

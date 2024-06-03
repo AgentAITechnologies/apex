@@ -15,12 +15,11 @@ from utils.parsing import files2dict
 from utils.stt import transcribe_speech, REC_KEY
 
 
-dotenv.load_dotenv()
-
-
 class Memory:
     PRINT_PREFIX = "[bold][MEMORY][/bold]"
     def __init__(self, environ_path_key: Optional[str] = None, file_ext: str = ".xml", prefix: Optional[str] = None):
+        dotenv.load_dotenv()
+
         if prefix:
             self.PRINT_PREFIX = f"{self.PRINT_PREFIX} {prefix}"
 
