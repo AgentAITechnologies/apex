@@ -1,7 +1,7 @@
 import os
 import io
 import sys
-from typing import Optional, Any
+from typing import Optional, Any, TextIO
 import dotenv
 import shutil
 
@@ -11,11 +11,23 @@ from rich import print
 
 from utils.files import create_directory, sort_filenames_ny_num
 
+
+class TeeIO(io.StringIO):
+    def __init__(self, console_output: TextIO):
+        super().__init__()
+        self.console_output = console_output
+
+    def write(self, s):
+        super().write(s)
+        self.console_output.write(s)
+        self.console_output.flush()
+
+
 class CodeExecutor:
     PRINT_PREFIX: str = "[bold][CodeExecutor][/bold]"
     PRIOR_CODE_FILENAME: str = "prior_code.py"
 
-    def __init__(self, prefix: Optional[str] = None, owner_name: Optional[str] = None) -> None:
+    def __init__(self, prefix, owner_name) -> None:
         dotenv.load_dotenv()
 
         if prefix:
@@ -47,7 +59,7 @@ class CodeExecutor:
             with open(file_path, "r") as file:
                 code = file.read()
 
-            stdout_capture, stderr_capture = io.StringIO(), io.StringIO()
+            stdout_capture, stderr_capture = TeeIO(sys.stdout), io.StringIO()
 
             with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
                 try:
