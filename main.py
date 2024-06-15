@@ -21,7 +21,7 @@ def main():
         TERM_WIDTH = os.get_terminal_size().columns
         print(f"{PRINT_PREFIX} TERM_WIDTH: {TERM_WIDTH}")
     except OSError:
-        TERM_WIDTH = os.environ.get("HEADLESS_TERM_WIDTH")
+        TERM_WIDTH = int(os.environ.get("HEADLESS_TERM_WIDTH", "160"))
         print(f"{PRINT_PREFIX} TERM_WIDTH (headless): {TERM_WIDTH}")
 
     client = anthropic.Anthropic(

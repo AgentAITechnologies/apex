@@ -1,5 +1,4 @@
 import os
-import keyboard
 from typing import Optional
 import dotenv
 
@@ -9,10 +8,9 @@ from anthropic.types.message import Message as AnthropicMessage
 
 from agents.prompt_management import load_all_prompts, load_system_prompt, load_user_prompt, load_assistant_prefill, get_msg
 
-from utils.types import Message
+from utils.custom_types import Message
 from utils.enums import Role
 from utils.parsing import files2dict
-from utils.stt import transcribe_speech, REC_KEY
 
 
 class Memory:
@@ -31,8 +29,8 @@ class Memory:
         self.system_prompt_history: list[str] = []
 
         if environ_path_key:
-            self.global_frmt: dict = files2dict(os.path.join(os.environ.get(environ_path_key), os.environ.get("INPUT_DIR"), os.environ.get("GLOBAL_FRMT_DIR")), file_ext)
-            self.persistence: dict = files2dict(os.path.join(os.environ.get(environ_path_key), os.environ.get("INPUT_DIR"), os.environ.get("PERSISTENCE_DIR")), file_ext)
+            self.global_frmt: dict = files2dict(os.path.join(os.environ.get(environ_path_key, "NO_PATH_SET"), os.environ.get("INPUT_DIR", "NO_PATH_SET"), os.environ.get("GLOBAL_FRMT_DIR", "NO_PATH_SET")), file_ext)
+            self.persistence: dict = files2dict(os.path.join(os.environ.get(environ_path_key, "NO_PATH_SET"), os.environ.get("INPUT_DIR", "NO_PATH_SET"), os.environ.get("PERSISTENCE_DIR", "NO_PATH_SET")), file_ext)
 
         self.results: dict[int, dict] = {}
     

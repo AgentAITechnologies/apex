@@ -35,9 +35,9 @@ class CodeExecutor:
         
         if owner_name:
             self.owner_name = owner_name
-
-        self.SESSION_DIR = os.path.join(os.environ.get("SESSIONS_DIR"), self.owner_name)
-        self.CODE_DIR = os.path.join(self.SESSION_DIR, os.environ.get("OUTPUT_DIR"))
+        
+        self.SESSION_DIR: str = os.path.join(os.environ.get("SESSIONS_DIR", "NO_PATH_SET"), self.owner_name)
+        self.CODE_DIR = os.path.join(self.SESSION_DIR, os.environ.get("OUTPUT_DIR", "NO_PATH_SET"))
 
         create_directory(self.CODE_DIR)
 
@@ -63,7 +63,7 @@ class CodeExecutor:
 
             with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
                 try:
-                    exec(code, {}, self.execution_context)
+                    exec(code, self.execution_context)
                 except Exception as e:
                     stderr_capture.write(str(e))
 

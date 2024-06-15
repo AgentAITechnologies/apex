@@ -1,0 +1,22 @@
+name: .conda
+channels:
+  - conda-forge
+  - pypi
+  - defaults
+dependencies:
+  - python=3.10
+  - python-dotenv
+  - rich
+  - anthropic
+  - openai
+  - ffmpeg
+  - soundfile
+  - sounddevice
+  - scipy
+  - alsa-lib
+  - python-sounddevice
+  - numpy
+  - pydub
+  - pynput
+  - graphviz
+  - pygraphviz

@@ -1,6 +1,10 @@
-# Python
+# Python bytecode files
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# venv
 .venv/
 
 # VSCode
@@ -17,3 +21,19 @@ prototyping/
 
 # generated output
 output/
+
+# Conda environment
+env/
+venv/
+
+# Conda build artifacts
+build/
+dist/
+*.egg-info/
+.conda/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Conda debug logs
+conda-debug.log

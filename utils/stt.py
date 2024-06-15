@@ -1,73 +1,112 @@
 import os
-
-import pyaudio
-from openai import OpenAI
-import keyboard
+import time
 import wave
-
+import numpy as np
+from numpy import float32, float64, ndarray, concatenate
+import sounddevice as sd
+import soundfile as sf
+from pynput import keyboard
+from rich import print
 import dotenv
+
+from openai import OpenAI
 
 
 dotenv.load_dotenv()
 
 
-# Set up OpenAI API credentials
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+PRINT_PREFIX = "[bold][STT][/bold]"
 
-# Set up pyaudio
-FORMAT = pyaudio.paInt16
-CHANNELS = 1
-RATE = 44100
-CHUNK = 1024
+if os.environ.get("AUDIO_IN_DEVICE", "NO_DEVICE_SET") != "NO_DEVICE_SET":
+    AUDIO_IN_DEVICE = int(os.environ.get("AUDIO_IN_DEVICE"))
+else:
+    AUDIO_IN_DEVICE = None
 
-REC_KEY = 'alt'
-QUIT_KEY = 'q'
+    if os.environ.get("USE_STT") == "True":
+        print(f"[bold][red]{PRINT_PREFIX} AUDIO_IN_DEVICE is not set, but USE_STT is 'True' - AUDIO_IN_DEVICE is required to be set on Linux if using STT[/red][/bold]")
 
-def transcribe_speech():
-    # Initialize pyaudio
-    audio = pyaudio.PyAudio()
+CHANNELS = sd.query_devices(AUDIO_IN_DEVICE)['max_input_channels']
+FPS = int(sd.query_devices(AUDIO_IN_DEVICE)['default_samplerate'])
+INTERVAL_SEC = 1
 
-    # Open the microphone stream
-    stream = audio.open(format=FORMAT, channels=CHANNELS,
-                        rate=RATE, input=True,
-                        frames_per_buffer=CHUNK)
-    
-    # print(f"Recording... Release '{REC_KEY}' to stop.")
-    frames = []
 
-    while keyboard.is_pressed(REC_KEY):
-        data = stream.read(CHUNK)
-        frames.append(data)
+recording_data: ndarray[float64] = ndarray((0, CHANNELS))
+is_recording: bool = False
+done: bool = False
 
-    # print("Recording stopped. Transcribing...")
 
-    # Convert the recorded audio to a byte string and save the recorded audio to a file
-    audio_file = os.path.join(os.environ.get("UI_DIR"), os.environ.get("OUTPUT_DIR"), "user_command.wav")
-    wf = wave.open(audio_file, 'wb')
-    wf.setnchannels(CHANNELS)
-    wf.setsampwidth(audio.get_sample_size(FORMAT))
-    wf.setframerate(RATE)
-    wf.writeframes(b"".join(frames))
-    wf.close()
+def on_press(key):
+    global is_recording
+    if key == keyboard.Key.alt_r and not is_recording:
+        is_recording = True
 
-    # Clean up
-    stream.stop_stream()
-    stream.close()
-    audio.terminate()
-    
-    # print("Audio file saved. Transcribing...")
+def on_release(key):
+    global is_recording, done
+    if key == keyboard.Key.alt_r and is_recording:
+        is_recording = False
+        done = True
 
-    with open(audio_file, "rb") as audio_file:
-        # Use the OpenAI API to transcribe the audio
+def transcribe_speech(test=False):
+    if AUDIO_IN_DEVICE is not None:
+        global recording_data, is_recording, done
 
-        transcription = client.audio.transcriptions.create(
-            model="whisper-1", 
-            file=audio_file
+        recording_data = ndarray((0, CHANNELS))
+        is_recording = False
+        done = False
+
+        client: OpenAI = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+        sd.default.device = AUDIO_IN_DEVICE
+
+        with sd.InputStream(samplerate=FPS, device=AUDIO_IN_DEVICE, channels=CHANNELS) as instream:
+            with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
+                while True:
+                    if is_recording:
+                        segment, _ = instream.read(int(INTERVAL_SEC * FPS))
+                        recording_data = concatenate((recording_data, segment))
+                    elif done:
+                        break
+                    else:
+                        time.sleep(0.1)
+
+        preprocessed_data: np.float32 = np.float32(recording_data)
+
+        audio_file_path = os.path.join(os.environ.get("UI_DIR", "NO_PATH_SET"), os.environ.get("OUTPUT_DIR", "NO_PATH_SET"), "user_command.wav")
+
+        if not os.path.exists(audio_file_path):
+            os.makedirs(os.path.join(os.environ.get("UI_DIR", "NO_PATH_SET"), os.environ.get("OUTPUT_DIR", "NO_PATH_SET")))
+            with open(audio_file_path, 'w') as f:
+                f.write("")
+
+        sf.write(audio_file_path, preprocessed_data, FPS)
+
+        if test:
+            print("playback for testing...")
+            
+            if os.environ.get("AUDIO_OUT_DEVICE", "NO_DEVICE_SET") != "NO_DEVICE_SET":
+                sd.default.device = int(os.environ.get("AUDIO_OUT_DEVICE"))
+                
+                audio_data, sample_rate = sf.read(audio_file_path)
+
+                sd.play(audio_data, samplerate=sample_rate)
+                sd.wait()
+            else:
+                print(f"[bold][red]{PRINT_PREFIX} AUDIO_OUT_DEVICE is not set - this is required on Linux[/red][/bold]")
+
+        with open(audio_file_path, 'rb') as f:
+            transcription = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=f
             )
 
-    # Print the transcribed text
-    # print("Transcription:", transcription.text)
+        return transcription.text
+    else:
+        return input()
 
-    return transcription.text
 
+# testing
+if __name__ == "__main__":
+    #for device in sd.query_devices():
+    #    print(device)
 
+    print(transcribe_speech(test=True))

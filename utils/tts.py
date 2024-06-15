@@ -3,15 +3,20 @@ import os
 import requests
 
 from io import BytesIO
-from pydub import AudioSegment
-from pydub.playback import play
+import sounddevice as sd
+import soundfile as sf
+
+from rich import print
 
 
 dotenv.load_dotenv()
 
 
+PRINT_PREFIX = "[bold][TTS][/bold]"
+
+
 def tts(text):
-    LATENCY_LEVEL = int(os.environ.get("ELEVENLABS_LATENCY_LEVEL"))
+    LATENCY_LEVEL = int(os.environ.get("ELEVENLABS_LATENCY_LEVEL", "0"))
 
     url = f'https://api.elevenlabs.io/v1/text-to-speech/{os.environ.get("ELEVENLABS_VOICE_ID")}/stream?optimize_streaming_latency={LATENCY_LEVEL}'
 
@@ -35,7 +40,20 @@ def tts(text):
     if response.status_code == 200:
         audio_bytes = response.content
         audio_buffer = BytesIO(audio_bytes)
-        audio_segment = AudioSegment.from_file(audio_buffer, format='mp3')
-        play(audio_segment)
+
+        if os.environ.get("AUDIO_OUT_DEVICE", "NO_DEVICE_SET") != "NO_DEVICE_SET":
+            sd.default.device = int(os.environ.get("AUDIO_OUT_DEVICE"))
+        else:
+            print(f"[bold][red]{PRINT_PREFIX} AUDIO_OUT_DEVICE is not set, but USE_TTS is set to 'True' - AUDIO_OUT_DEVICE is required to be set on Linux if using TTS[/red][/bold]")
+
+        audio_data, sample_rate = sf.read(audio_buffer)
+
+        sd.play(audio_data, samplerate=sample_rate)
+        # sd.wait()
     else:
-        print(f"Error: {response.status_code} - {response.text}")
+        print(f"[bold][red]{PRINT_PREFIX} Error: {response.status_code} - {response.text}[/red][/bold]")
+
+
+# testing
+if __name__ == "__main__":
+    tts("rat cat on a mat")

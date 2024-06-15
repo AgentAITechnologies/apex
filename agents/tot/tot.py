@@ -1,4 +1,4 @@
-from typing import Dict, Union
+from typing import Dict, List, Union
 
 import os
 import json
@@ -17,22 +17,22 @@ from agents.prompt_management import load_system_prompt, load_user_prompt, get_m
 from agents.memory import Memory
 
 from utils.enums import Role
-from utils.types import StrScoresDict, IntScoresDict, IntScoreDict, ScoresList
+from utils.custom_types import StrScoresDict, NumScoresDict, ScoresList
 from utils.parsing import xmlstr2dict, extract_language_and_code
 from utils.llm import llm_turn
 
 from anthropic import Anthropic
 
 
-PLAN_COUNT_HL = int(os.environ.get("PLAN_COUNT_HL"))
-PLAN_COUNT = int(os.environ.get("PLAN_COUNT"))
+PLAN_COUNT_HL = int(os.environ.get("PLAN_COUNT_HL", "3"))
+PLAN_COUNT = int(os.environ.get("PLAN_COUNT", "3"))
 
-VOTER_COUNT = int(os.environ.get("VOTER_COUNT"))
-PROPOSAL_COUNT = int(os.environ.get("PROPOSAL_COUNT"))
+VOTER_COUNT = int(os.environ.get("VOTER_COUNT", "3"))
+PROPOSAL_COUNT = int(os.environ.get("PROPOSAL_COUNT", "3"))
 
 EVAL_CATEGORIES = ["correctness", "elegance", "understandability", "specificity", "overall"]
 
-TEMP = 0.7
+TEMP = 0.0
 
 
 class ToT():
@@ -47,11 +47,11 @@ class ToT():
 
         self.tasks = []
 
-        with open(os.path.join(os.environ.get("TOT_DIR"), os.environ.get("INPUT_DIR"), "states.json")) as file:
+        with open(os.path.join(os.environ.get("TOT_DIR", "NO_PATH_SET"), os.environ.get("INPUT_DIR", "NO_PATH_SET"), "states.json")) as file:
             state_data = json.load(file)
             rprint(f"{self.PRINT_PREFIX} loaded state_data")
 
-        with open(os.path.join(os.environ.get("TOT_DIR"), os.environ.get("INPUT_DIR"), "transitions.json")) as file:
+        with open(os.path.join(os.environ.get("TOT_DIR", "NO_PATH_SET"), os.environ.get("INPUT_DIR", "NO_PATH_SET"), "transitions.json")) as file:
             transition_data = json.load(file)
             rprint(f"{self.PRINT_PREFIX} loaded transition_data")
 
@@ -145,8 +145,7 @@ class ToT():
                     self.unified_step['best_plan'] = best_plan
 
                     self.csm.transition("Propose", locals())
-            
-                # TODO: Modify to detect cals to input(), translate into UI agent ipc and injected parameters
+
                 case "Propose":
                     system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": task})
                     user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": self.step_num,
@@ -353,10 +352,11 @@ class ToT():
         self.open_step_tag = f"<step_{self.step_num}>"
         self.close_step_tag = f"</step_{self.step_num}>"
     
-    def reduce_scores(self, step_plan_vote_strs: dict[str, list[str]], omit_categories: list[str] = []) -> IntScoresDict:
-        avg_scores: IntScoresDict = {step_plan: {eval_category: 0 for eval_category in EVAL_CATEGORIES} for step_plan in step_plan_vote_strs.keys()}
-
-        scores: dict[str, list[StrScoresDict]] = {}
+    def reduce_scores(self, step_plan_vote_strs: Dict[str, List[str]], omit_categories: List[str] = []) -> NumScoresDict:
+        avg_scores: NumScoresDict = {step_plan: {eval_category: 0.0 for eval_category in EVAL_CATEGORIES if eval_category not in omit_categories}
+                                     for step_plan in step_plan_vote_strs.keys()}
+ 
+        scores: Dict[str, List[StrScoresDict]] = {}
 
         for step_plan, vote_strs in step_plan_vote_strs.items():
             for vote_str in vote_strs:
@@ -381,11 +381,10 @@ class ToT():
         avg_yes_votes = 0
 
         for exec_vote_str in unified_step['exec_vote_strs']:
-            for _ in range(VOTER_COUNT):
-                parsed_scores = xmlstr2dict(exec_vote_str, self.client)
+            parsed_scores = xmlstr2dict(exec_vote_str, self.client)
 
-                if parsed_scores['complete'] == "yes":
-                    sum_yes_votes += 1
+            if parsed_scores['complete'] == "yes":
+                sum_yes_votes += 1
 
         avg_yes_votes = sum_yes_votes / VOTER_COUNT
         
@@ -394,9 +393,9 @@ class ToT():
         
         return avg_yes_votes
 
-    def choose(self, scores: IntScoresDict) -> str:
-        def sort_dicts(dicts):
-            def get_mean_score(item):
+    def choose(self, scores: NumScoresDict) -> str:
+        def sort_dicts(dicts) -> ScoresList:
+            def get_mean_score(item) -> float:
                 scores = item[1].values()
                 return sum(scores) / len(scores)
 

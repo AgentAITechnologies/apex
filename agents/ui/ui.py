@@ -28,11 +28,11 @@ class UI(Agent):
         
         super().__init__(term_width, prefix=prefix, name=name, description=description, tasks=tasks)
 
-        with open(os.path.join(os.environ.get("UI_DIR"), os.environ.get("INPUT_DIR"), "states.json")) as file:
+        with open(os.path.join(os.environ.get("UI_DIR", "NO_PATH_SET"), os.environ.get("INPUT_DIR", "NO_PATH_SET"), "states.json")) as file:
             state_data = json.load(file)
             print(f"{self.PRINT_PREFIX} loaded state_data")
 
-        with open(os.path.join(os.environ.get("UI_DIR"), os.environ.get("INPUT_DIR"), "transitions.json")) as file:
+        with open(os.path.join(os.environ.get("UI_DIR", "NO_PATH_SET"), os.environ.get("INPUT_DIR", "NO_PATH_SET"), "transitions.json")) as file:
             transition_data = json.load(file)
             print(f"{self.PRINT_PREFIX} loaded transition_data")
 
