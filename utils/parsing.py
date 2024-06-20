@@ -5,15 +5,17 @@ import os
 import re
 
 import xml.etree.ElementTree as ET
+from xml.etree.ElementTree import Element
 
 from rich import print
 
 from utils.enums import Role
 from utils.llm import llm_turn
+from utils.custom_types import NestedStrDict
+
 from agents.prompt_management import get_msg
 
 from anthropic import Anthropic
-from xml.etree.ElementTree import Element
 
 
 PRINT_PREFIX = "[bold][Parsing][/bold]"
@@ -89,7 +91,7 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
         print(f"[red][bold]{PRINT_PREFIX} root element evaluated to {type(result)}, expected dict")
         exit(1)
 
-def dict2xml(d: dict[str, str], tag: str="root") -> Element:
+def dict2xml(d: NestedStrDict, tag: str="root") -> Element:
     """
     Convert a dictionary with possible nested dictionaries into XML
     """

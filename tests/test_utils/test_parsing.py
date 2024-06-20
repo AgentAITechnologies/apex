@@ -1,12 +1,13 @@
 import sys
 import os
+from xml.etree.ElementTree import Element, tostring
 
 import pytest
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-
-from utils.parsing import xmlstr2dict
+from utils.parsing import xmlstr2dict, dict2xml
+from utils.custom_types import NestedStrDict
 
 
 @pytest.mark.parametrize("xmlstr, client, expected", [
@@ -28,3 +29,49 @@ from utils.parsing import xmlstr2dict
 ])
 def test_xmlstr2dict(xmlstr, client, expected):
     assert xmlstr2dict(xmlstr, client) == expected
+
+@pytest.mark.parametrize(
+    "d, expected_xml, tag",
+    [
+        (
+            {"name": "John", "age": "30"},
+            '<root><name>John</name><age>30</age></root>',
+            "root",
+        ),
+        (
+            {
+                "person": {
+                    "name": "John",
+                    "age": "30",
+                    "address": {
+                        "street": "123 Main St",
+                        "city": "New York",
+                    },
+                },
+            },
+            (
+                '<root><person><name>John</name><age>30</age>'
+                '<address><street>123 Main St</street><city>New York</city></address>'
+                '</person></root>'
+            ),
+            "root",
+        ),
+        (
+            {},
+            '<root />',
+            "root",
+        ),
+        (
+            {"name": "John", "age": None},
+            '<root><name>John</name><age>None</age></root>',
+            "root",
+        ),
+        (
+            {"name": "John", "age": "30"},
+            '<person><name>John</name><age>30</age></person>',
+            "person",
+        ),
+    ],
+)
+def test_dict2xml(d: NestedStrDict, expected_xml: str, tag: str):
+    assert tostring(dict2xml(d, tag=tag)).decode() == expected_xml
