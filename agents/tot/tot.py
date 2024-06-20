@@ -1,15 +1,13 @@
-from typing import Dict, List, Union
-
 import os
 import json
+from typing import Optional
 
-from copy import deepcopy
-from typing import Any, Optional
 
 import dotenv
 
 from rich import print as rprint
 
+from agents.agent import Agent
 from agents.state_management import ConversationStateMachine
 from agents.execution_management.execution_management import CodeExecutor
 from agents.prompt_management import load_system_prompt, load_user_prompt, get_msg
@@ -17,9 +15,9 @@ from agents.prompt_management import load_system_prompt, load_user_prompt, get_m
 from agents.memory import Memory
 
 from utils.enums import Role
-from utils.custom_types import StrScoresDict, NumScoresDict, ScoresList
-from utils.parsing import xmlstr2dict, extract_language_and_code
-from utils.llm import llm_turn
+from utils.custom_types import ScoresList, StrScoresDict, NumScoresDict
+from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code
+from utils.llm import llm_turns
 
 from anthropic import Anthropic
 
@@ -32,20 +30,22 @@ PROPOSAL_COUNT = int(os.environ.get("PROPOSAL_COUNT", "3"))
 
 EVAL_CATEGORIES = ["correctness", "elegance", "understandability", "specificity", "overall"]
 
-TEMP = 0.0
+TEMP = 0.7
 
 
-class ToT():
+class ToT(Agent):
     PRINT_PREFIX = "[blue][bold][ToT][/bold][/blue]"
 
-    def __init__(self, name: str, description, client: Anthropic):
+    def __init__(self, client: Anthropic, name: str, description: str, tasks: list[dict]) -> None:
         dotenv.load_dotenv()
 
-        self.name: str = name
-        self.description = description
-        self.client = client
+        super().__init__(client=client,
+                         prefix=self.PRINT_PREFIX,
+                         name=name,
+                         description=description,
+                         tasks=tasks)
 
-        self.tasks = []
+        self.client = client
 
         with open(os.path.join(os.environ.get("TOT_DIR", "NO_PATH_SET"), os.environ.get("INPUT_DIR", "NO_PATH_SET"), "states.json")) as file:
             state_data = json.load(file)
@@ -62,8 +62,11 @@ class ToT():
         self.unified_memory = Memory(prefix=self.PRINT_PREFIX)
         self.unified_steps = []
     
-    def run(self, task):
-        self.tasks.append(task)
+    def run(self) -> None:
+        task_dict = self.tasks[-1]
+        task = xml2xmlstr(dict2xml(task_dict))
+
+        rprint(f"{self.PRINT_PREFIX} task:\n{task}")
 
         if self.csm.current_state.name == "Done":
             self.csm.transition("Plan", locals())
@@ -80,21 +83,24 @@ class ToT():
             match state_path:
                 
                 case "Plan":
-                    frmt = {"step_num": self.step_num, "task": task}
-
-                    system_prompt = load_system_prompt(state_path, "TOT_DIR", frmt)      
-                    user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, frmt))
+                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
+                                                                               "task": task})
+                    
+                    user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
+                                                                                                    "task": task,
+                                                                                                    "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
                     
                     start_seq = self.open_step_tag + "<plan>"
                     assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
 
                     messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
                                                  
-                    plan_candidates: set[str] = set([llm_turn(client=self.client,
+                    plan_candidates: set[str] = set(llm_turns(client=self.client,
                                                               prompts={"system": system_prompt,
                                                                        "messages": messages},
                                                               stop_sequences=["</plan>"],
-                                                              temperature=TEMP) for _ in range(PLAN_COUNT)])
+                                                              temperature=TEMP,
+                                                              n=PLAN_COUNT))
                     
                     self.unified_step['plan_candidates'] = plan_candidates
 
@@ -105,30 +111,28 @@ class ToT():
                         self.csm.transition("Propose", locals())
 
                 case "PlanVote":
-                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": self.step_num,
+                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
                                                                                "task": task})
                     
                     plan_vote_strs: dict[str, list[str]] = {}
 
                     for plan_candidate in plan_candidates:
-
-                        user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": self.step_num,
+                        user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                         "task": task,
-                                                                                                        "plan": plan_candidate}))
+                                                                                                        "plan": plan_candidate,
+                                                                                                        "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
 
                         start_seq = self.open_step_tag + "<evaluation>"
                         assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
 
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
-                        plan_vote_strs[plan_candidate] = []
-                        
-                        for _ in range(VOTER_COUNT):
-                            plan_vote_strs[plan_candidate].append(llm_turn(client=self.client,
-                                                                           prompts={"system": system_prompt,
-                                                                                    "messages": messages},
-                                                                           stop_sequences=["</evaluation>"],
-                                                                           temperature=TEMP))
+                        plan_vote_strs[plan_candidate] = llm_turns(client=self.client,
+                                                                   prompts={"system": system_prompt,
+                                                                            "messages": messages},
+                                                                   stop_sequences=["</evaluation>"],
+                                                                   temperature=TEMP,
+                                                                   n=VOTER_COUNT)
                         
                     self.unified_step['plan_vote_strs'] = plan_vote_strs
 
@@ -148,29 +152,29 @@ class ToT():
 
                 case "Propose":
                     system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": task})
-                    user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": self.step_num,
+
+                    user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                     "task": task,
-                                                                                                    "plan": self.unified_step['best_plan']}))
+                                                                                                    "plan": self.unified_step['best_plan'],
+                                                                                                    "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
                     
                     start_seq = self.open_step_tag + "<implementation>" + "\n" + "```python"
                     assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
                     
                     messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
-                    proposals: dict[str, list[str]] = {self.unified_step['best_plan']: []}
-
-                    for _ in range(PROPOSAL_COUNT):
-                        proposal = llm_turn(client=self.client,
-                                            prompts={"system": system_prompt,
-                                                    "messages": messages},
-                                            stop_sequences=["```"],
-                                            temperature=TEMP)
+                    raw_proposals = llm_turns(client=self.client,
+                                              prompts={"system": system_prompt,
+                                                       "messages": messages},
+                                              stop_sequences=["```"],
+                                              temperature=TEMP,
+                                              n=PROPOSAL_COUNT)
                         
-                        proposal = "```python" + proposal + "```"
+                    proposals = ["```python" + raw_proposal + "```" for raw_proposal in raw_proposals]
                         
-                        proposals[self.unified_step['best_plan']].append(proposal)
+                    proposals_map: dict[str, list[str]] = {self.unified_step['best_plan']: proposals}
 
-                    self.unified_step['proposals'] = set(proposals[self.unified_step['best_plan']])
+                    self.unified_step['proposals'] = set(proposals_map[self.unified_step['best_plan']])
                     
                     if len(self.unified_step['proposals']) != 1:
                         self.csm.transition("ProposeVote", locals())
@@ -184,28 +188,25 @@ class ToT():
                     start_seq = self.open_step_tag + "<evaluation>"
                     assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
 
-                    proposal_vote_strs: dict[str, list[str]] = {}
+                    proposal_vote_map: dict[str, list[str]] = {}
                     
                     for proposal in self.unified_step['proposals']:
-                        user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": self.step_num,
-                                                                                                     "task": task,
-                                                                                                     "plan": self.unified_step['best_plan'],
-                                                                                                     "implementation": proposal}))
+                        user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
+                                                                                                        "task": task,
+                                                                                                        "plan": self.unified_step['best_plan'],
+                                                                                                        "implementation": proposal,
+                                                                                                        "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
                         
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
-                        proposal_vote_strs[proposal] = []
+                        proposal_vote_map[proposal] = llm_turns(client=self.client,
+                                                                prompts={"system": system_prompt,
+                                                                         "messages": messages},
+                                                                stop_sequences=["</evaluation>"],
+                                                                temperature=TEMP,
+                                                                n=VOTER_COUNT)
 
-                        for _ in range(VOTER_COUNT):
-                            proposal_vote = llm_turn(client=self.client,
-                                                     prompts={"system": system_prompt,
-                                                             "messages": messages},
-                                                     stop_sequences=["</evaluation>"],
-                                                     temperature=TEMP)
-                            
-                            proposal_vote_strs[proposal].append(proposal_vote)
-
-                    self.unified_step['proposal_vote_strs'] = proposal_vote_strs
+                    self.unified_step['proposal_vote_strs'] = proposal_vote_map
 
                     self.csm.transition("SumProposeVotes", locals())
 
@@ -256,7 +257,7 @@ class ToT():
                 case "PlanErrorFix":
                     previous_step = self.unified_steps[-1]
 
-                    frmt = {"step_num": self.step_num, "task": task, "error": previous_step['error'], "output": previous_step['output']}
+                    frmt = {"step_num": str(self.step_num), "task": task, "error": previous_step['error'], "output": previous_step['output']}
 
                     system_prompt = load_system_prompt(state_path, "TOT_DIR", frmt)      
                     user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, frmt))
@@ -266,11 +267,12 @@ class ToT():
 
                     messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
                                                  
-                    plan_candidates: set[str] = set([llm_turn(client=self.client,
+                    plan_candidates: set[str] = set(llm_turns(client=self.client,
                                                               prompts={"system": system_prompt,
                                                                        "messages": messages},
                                                               stop_sequences=["</plan>"],
-                                                              temperature=TEMP) for _ in range(PLAN_COUNT)])
+                                                              temperature=TEMP,
+                                                              n=PLAN_COUNT))
                     
                     self.unified_step['plan_candidates'] = plan_candidates
 
@@ -282,7 +284,7 @@ class ToT():
 
                 case "ExecVote":
                     system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": task})
-                    user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": self.step_num,
+                    user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                     "task": task,
                                                                                                     "plan": self.unified_step['best_plan'],
                                                                                                     "implementation": self.unified_step['best_proposition'],
@@ -294,18 +296,14 @@ class ToT():
 
                     messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
                     
-                    exec_vote_strs: list[str] = []
-
-                    for _ in range(VOTER_COUNT):
-                        exec_vote = llm_turn(client=self.client,
-                                             prompts={"system": system_prompt,
-                                                      "messages": messages},
-                                             stop_sequences=["</evaluation>"],
-                                             temperature=TEMP)
-                        
-                        exec_vote_strs.append(exec_vote)
-                        
-                    self.unified_step['exec_vote_strs'] = exec_vote_strs
+                    exec_votes: list[str] = llm_turns(client=self.client,
+                                                      prompts={"system": system_prompt,
+                                                            "messages": messages},
+                                                      stop_sequences=["</evaluation>"],
+                                                      temperature=TEMP,
+                                                      n=VOTER_COUNT)
+                    
+                    self.unified_step['exec_vote_strs'] = exec_votes
 
                     self.csm.transition("SumExecVote", locals())
 
@@ -324,8 +322,13 @@ class ToT():
 
         return
     
-    def next_step(self):
-        unified_user_str = f"Plan and implement step {self.step_num}:"
+    def next_step(self) -> None:
+        if self.step_num > 1:
+            suffix = ", taking into consideration the results of what you have already done in prior steps:"
+        else:
+            suffix = ":"
+        
+        unified_user_str = f"Plan and implement step {self.step_num}" + suffix
 
         unified_assistant_str = f"""{self.open_step_tag}
 <plan>{self.unified_step['best_plan']}</plan>
@@ -352,11 +355,14 @@ class ToT():
         self.open_step_tag = f"<step_{self.step_num}>"
         self.close_step_tag = f"</step_{self.step_num}>"
     
-    def reduce_scores(self, step_plan_vote_strs: Dict[str, List[str]], omit_categories: List[str] = []) -> NumScoresDict:
+    def reduce_scores(self, step_plan_vote_strs: dict[str, list[str]], omit_categories: Optional[list[str]] = None) -> NumScoresDict:
+        if not omit_categories:
+            omit_categories = []
+        
         avg_scores: NumScoresDict = {step_plan: {eval_category: 0.0 for eval_category in EVAL_CATEGORIES if eval_category not in omit_categories}
                                      for step_plan in step_plan_vote_strs.keys()}
  
-        scores: Dict[str, List[StrScoresDict]] = {}
+        scores: dict[str, list[StrScoresDict]] = {}
 
         for step_plan, vote_strs in step_plan_vote_strs.items():
             for vote_str in vote_strs:
@@ -376,7 +382,7 @@ class ToT():
         
         return avg_scores
     
-    def reduce_scores_exec(self, unified_step):
+    def reduce_scores_exec(self, unified_step: dict[str, set[str] | str | list[str]]) -> float:
         sum_yes_votes = 0
         avg_yes_votes = 0
 

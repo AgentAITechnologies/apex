@@ -26,8 +26,6 @@ Do not deduct points if a step does not complete the task on its own, since you 
 
 For example, if your task is "<task>Save the current date and time to a file</task><details><filename>datetime.txt</filename><location>The current user's desktop</location></details>", and each step of the plan is:
 
-<plan>
-
 <step_1>
 <plan>Import the necessary modules (datetime for getting the current date and time, and os for file and directory operations)</plan>
 <implementation>
@@ -81,6 +79,7 @@ file_path = os.path.join(desktop_path, "datetime.txt")
 with open(file_path, "w") as file:
     file.write(formatted_datetime)
 ```
+</implementation>
 </step_6>
 
 <step_7>
@@ -91,8 +90,6 @@ with open(file_path, "w") as file:
 ```
 </implementation>
 </step_7>
-
-</plan>
 
 and you are evaluating step_4, a reasonable response would be:
 

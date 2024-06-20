@@ -7,4 +7,4 @@ Your previous code from step {step_num} of the task {task} produced this erroneo
 {output}
 </stdout>
 
-Propose a solution that may be easily transcribed into Python code. Do NOT write the code, simply explain how to fix this error in plain English that may be converted to Python code later.
+Propose a solution that may be easily transcribed into Python code, taking into consideration the results of what you have already done. Do NOT write the code, simply explain how to fix this error in plain English that may be implemented as Python code later.

@@ -13,11 +13,11 @@ from utils.files import create_directory, sort_filenames_ny_num
 
 
 class TeeIO(io.StringIO):
-    def __init__(self, console_output: TextIO):
+    def __init__(self, console_output: TextIO) -> None:
         super().__init__()
         self.console_output = console_output
 
-    def write(self, s):
+    def write(self, s: str) -> None:
         super().write(s)
         self.console_output.write(s)
         self.console_output.flush()
@@ -27,7 +27,7 @@ class CodeExecutor:
     PRINT_PREFIX: str = "[bold][CodeExecutor][/bold]"
     PRIOR_CODE_FILENAME: str = "prior_code.py"
 
-    def __init__(self, prefix, owner_name) -> None:
+    def __init__(self, prefix: str, owner_name: str) -> None:
         dotenv.load_dotenv()
 
         if prefix:
@@ -46,13 +46,13 @@ class CodeExecutor:
     def __del__(self):
         shutil.rmtree(self.SESSION_DIR)
 
-    def write_code_step_file(self, code, step_num):
+    def write_code_step_file(self, code: str, step_num: int) -> None:
         file_path = os.path.join(self.CODE_DIR, f"step_{step_num}.py")
 
         with open(file_path, "w") as file:
             file.write(code)
 
-    def execute_code_step(self, step_num) -> tuple[str, str]:
+    def execute_code_step(self, step_num: int) -> tuple[str, str]:
         file_path = os.path.join(self.CODE_DIR, f"step_{step_num}.py")
 
         if os.path.exists(file_path):
@@ -84,7 +84,7 @@ class CodeExecutor:
                 print(f"[red][bold]{self.PRINT_PREFIX} Code for step {step_num} unable to be written to disk[/bold][/red]")
                 break
 
-    def finalize_task(self, task):
+    def finalize_task(self, task: str) -> None:
         with open(os.path.join(self.CODE_DIR, self.PRIOR_CODE_FILENAME), "a") as prior_code_file:
             prior_code_file.write(f"'''\n{task}\n'''\n")
 

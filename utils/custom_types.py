@@ -1,11 +1,10 @@
-from typing import Literal, Dict, List, Any
+from typing import Literal, Any
 
-from utils.enums import Role
+Message = dict[Literal['role', 'content'], str]
+PromptsDict = dict[Literal['system', 'messages'], str | list[Message]]
 
-Message = Dict[Literal["role", "content"], str]
-
-StrScoresDict = Dict[str, Dict[str, str]]
-NumScoresDict = Dict[str, Dict[str, float]]
+StrScoresDict = dict[str, dict[str, str]]
+NumScoresDict = dict[str, dict[str, float]]
 
 # TODO: Find out what this actually is
-ScoresList = List[Any]
+ScoresList = list[Any]

@@ -1,5 +1,4 @@
-Write Python code to implement step {step_num} of the task {task}:
+Write Python code to implement step {step_num} of the task {task}{suffix}
 
 <step_{step_num}>
 <plan>{plan}</plan>
-</step{step_num}>

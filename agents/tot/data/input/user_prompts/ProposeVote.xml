@@ -1,4 +1,4 @@
-Evaluate the implementation of step {step_num} of task {task}:
+Evaluate the implementation of step {step_num} of task {task}{suffix}
 
 <step_{step_num}>
 <plan>{plan}</plan>

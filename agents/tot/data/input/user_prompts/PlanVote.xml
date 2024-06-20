@@ -1,5 +1,4 @@
-Evaluate step {step_num} of the task {task}:
+Evaluate step {step_num} of the task {task}{suffix}
 
 <step_{step_num}>
 <plan>{plan}</plan>
-</step_{step_num}>

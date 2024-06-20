@@ -19,9 +19,10 @@ def main():
 
     try:
         TERM_WIDTH = os.get_terminal_size().columns
+        os.environ["TERM_WIDTH"] = str(TERM_WIDTH)
         print(f"{PRINT_PREFIX} TERM_WIDTH: {TERM_WIDTH}")
     except OSError:
-        TERM_WIDTH = int(os.environ.get("HEADLESS_TERM_WIDTH", "160"))
+        TERM_WIDTH = int(os.environ.get("TERM_WIDTH", "160"))
         print(f"{PRINT_PREFIX} TERM_WIDTH (headless): {TERM_WIDTH}")
 
     client = anthropic.Anthropic(
@@ -30,8 +31,8 @@ def main():
 
     agent_manager = AgentManager(client=client, prefix=PRINT_PREFIX)
 
-    ui = UI(term_width=TERM_WIDTH, prefix=PRINT_PREFIX, name="UI")
-    ui.run(client)
+    ui = UI(client=client, prefix=PRINT_PREFIX)
+    ui.run()
 
 
 if __name__ == "__main__":

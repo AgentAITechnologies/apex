@@ -13,12 +13,13 @@ from utils.llm import llm_turn
 from agents.prompt_management import get_msg
 
 from anthropic import Anthropic
+from xml.etree.ElementTree import Element
 
 
 PRINT_PREFIX = "[bold][Parsing][/bold]"
 
 
-def files2dict(path, extension: str) -> dict[str, str]:
+def files2dict(path: str, extension: str) -> dict[str, str]:
     retval = {}
 
     source_files = glob.glob(os.path.join(path, f'*{extension}'))
@@ -63,7 +64,7 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
             print(f"{PRINT_PREFIX} [red][bold]Error parsing XML, and fix attempt limit of {depth+1} reached:\n{xml_string}[/bold][/red]")
             exit(1)
     
-    def parse_element(element: ET.Element) -> Optional[dict]:
+    def parse_element(element: ET.Element) -> Optional[dict] | Optional[str]:
         if len(element) == 0:
             if element.text is None:
                 return None
@@ -81,9 +82,14 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
                         result[child.tag] = None
             return result
     
-    return parse_element(root)
+    result = parse_element(root)
+    if isinstance(result, dict):
+        return result
+    else:
+        print(f"[red][bold]{PRINT_PREFIX} root element evaluated to {type(result)}, expected dict")
+        exit(1)
 
-def dict2xml(d, tag="root"):
+def dict2xml(d: dict[str, str], tag: str="root") -> Element:
     """
     Convert a dictionary with possible nested dictionaries into XML
     """
@@ -99,7 +105,7 @@ def dict2xml(d, tag="root"):
         elem.append(child)
     return elem
 
-def xml2xmlstr(xml, no_root=True):
+def xml2xmlstr(xml: Element, no_root: bool=True) -> str:
     def extract_root_xmlstr(xml_str: str, root_str):
         xml_str = xml_str.strip()
         open_tag, close_tag = f"<{root_str}>", f"</{root_str}>"
@@ -112,7 +118,6 @@ def xml2xmlstr(xml, no_root=True):
         return extract_root_xmlstr(ET.tostring(xml, encoding="unicode"), xml.tag)
     else:
         return ET.tostring(xml, encoding="unicode")
-
 
 def extract_language_and_code(markdown_string: str) -> Optional[tuple[str, str]]:
     pattern = re.compile(r"```(\w+)\n(.*?)```", re.DOTALL)

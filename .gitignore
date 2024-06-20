@@ -37,3 +37,9 @@ dist/
 
 # Conda debug logs
 conda-debug.log
+
+# MonkeyType
+*.sqlite3
+
+# pytest
+.pytest_cache/

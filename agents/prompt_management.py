@@ -1,15 +1,12 @@
 import os
 from typing import Optional
 import dotenv
-from pynput import keyboard
 
 from rich import print
 
-from anthropic.types.message import Message as AnthropicMessage
-
 from utils.enums import Role
 from utils.custom_types import Message
-from utils.stt import transcribe_speech
+from utils.stt import STT
 
 
 dotenv.load_dotenv()
@@ -25,13 +22,15 @@ def load_user_prompt(state_path: str, environ_path_key: str, dynamic_metaprompt:
 
         if not use_stt:
             print(dynamic_metaprompt, end="")
-            user_prompt = input()
+            user_input = input()
 
             return "<input>" + user_input + "</input>"
 
         else:
+            stt = STT()
+
             print(dynamic_metaprompt, end="")
-            user_input = transcribe_speech()
+            user_input = stt.transcribe_speech()
 
             print(user_input)
 
@@ -53,7 +52,7 @@ def load_user_prompt(state_path: str, environ_path_key: str, dynamic_metaprompt:
                     
             return user_prompt
 
-def load_system_prompt(state_path: str, environ_path_key: str, frmt: dict[str, str]):
+def load_system_prompt(state_path: str, environ_path_key: str, frmt: dict[str, str]) -> str:
     sys_prompt_dir = os.path.join(os.environ.get(environ_path_key, "NO_PATH_SET"), os.environ.get("INPUT_DIR", "NO_PATH_SET"), os.environ.get("SYS_PRMPT_DIR", "NO_PATH_SET"))
 
     with open(os.path.join(sys_prompt_dir, state_path+FILE_EXT), 'r') as f:
@@ -64,7 +63,7 @@ def load_system_prompt(state_path: str, environ_path_key: str, frmt: dict[str, s
 
     return sys_prompt
 
-def load_assistant_prefill(prefill: str):
+def load_assistant_prefill(prefill: str) -> Message:
     msg = get_msg(Role.ASSISTANT, prefill)
     return msg
 

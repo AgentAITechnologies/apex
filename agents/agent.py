@@ -1,14 +1,16 @@
+import os
 from typing import Optional
 
+from anthropic import Anthropic
 import dotenv
 
 from rich import print
 
 class Agent():
-    def __init__(self, term_width: int, prefix, name: str, description: str, tasks: list[dict]):
+    def __init__(self, client: Anthropic, prefix, name: str, description: str, tasks: list[dict]):
         dotenv.load_dotenv()
-        
-        self.term_width = term_width
+
+        self.client = client
 
         self.PRINT_PREFIX = f"[bold][{name}][/bold]"
         if prefix:
@@ -20,8 +22,8 @@ class Agent():
 
         print(f"{self.PRINT_PREFIX} dotenv.load_dotenv(): {dotenv.load_dotenv()}")
 
-    def run(self, client):
-        pass
+    def add_task(self, task: dict):
+        self.tasks.append(task)
 
-    def match_trigger(self, parsed_response: dict[str, Optional[str]]) -> str:
+    def run(self):
         pass

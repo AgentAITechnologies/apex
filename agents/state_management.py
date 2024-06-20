@@ -15,13 +15,11 @@ from agents.ui.callbacks import *
 from agents.tot.callbacks import *
 from agents.agent_manager.callbacks import *
 
-from anthropic import Anthropic
-
 
 class ConversationState:
     PRINT_PREFIX = "[bold][CS][/bold]"
 
-    def __init__(self, name=None, parent: Optional[ConversationState] = None, system="", messages=[], frmt={}, prefix=""):
+    def __init__(self, name: Optional[str] = None, parent: Optional[ConversationState] = None, system="", messages=[], frmt={}, prefix=""):
         dotenv.load_dotenv()
 
         if prefix:
@@ -70,10 +68,14 @@ class ConversationState:
             return self
 
     def get_hpath(self) -> str:
-        if self.parent and self.parent.name != "root":
-            return self.parent.get_hpath() + "_" + self.name
+        if isinstance(self.name, str):
+            if self.parent and self.parent.name != "root":
+                return self.parent.get_hpath() + "_" + self.name
+            else:
+                return self.name
         else:
-            return self.name
+            print(f"[red][bold] {self.PRINT_PREFIX} name not assigned[/bold][/red]")
+            exit(1)
         
     def on_enter(self, csm: ConversationStateMachine, locals):
         if self.callback:
@@ -95,7 +97,7 @@ class ConversationState:
 class ConversationStateMachine:
     PRINT_PREFIX = "[bold][CSM][/bold]"
 
-    def __init__(self, state_data=None, transition_data=None, init_state_path=None, prefix=None, owner_class_name=""):
+    def __init__(self, state_data: dict, transition_data: dict, init_state_path: str, prefix: str, owner_class_name=""):
         self.owner_name = owner_class_name
 
         if prefix:
@@ -147,7 +149,7 @@ class ConversationStateMachine:
     def find_state_by_path(self, path: str) -> Optional[ConversationState]:
             return self.state_map.get(path)
     
-    def initialize_transitions(self, transition_data=None):
+    def initialize_transitions(self, transition_data: dict) -> None:
         self.transition_data = transition_data
         self.state_map: dict[str, ConversationState] = {}
 
@@ -176,7 +178,7 @@ class ConversationStateMachine:
                 else:
                     print(f"[red]{self.PRINT_PREFIX} Warning: Invalid transition - Source: {source_path}, Destination: {dest_path}[/red]")
 
-    def visualize(self, filename):
+    def visualize(self, filename: str) -> None:
         graph = pgv.AGraph(directed=True)
 
         graph.graph_attr['fontname'] = 'Consolas'
@@ -217,10 +219,15 @@ class ConversationStateMachine:
 
         graph.layout(prog='dot')
         
-        if not os.path.exists(os.path.join(os.environ.get("OUTPUT_DIR"))):
-            os.makedirs(os.path.join(os.environ.get("OUTPUT_DIR")))
-            
-        graph.draw(os.path.join(os.environ.get("OUTPUT_DIR"), f'state_diagram_{filename}.png'))
+        output_dir = os.environ.get("OUTPUT_DIR")
+        if output_dir is not None:
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+                
+            graph.draw(os.path.join(output_dir, f'state_diagram_{filename}.png'))
+        else:
+            print(f"[red][bold]{self.PRINT_PREFIX} invalid OUTPUT_DIR not set[/bold][/red]")
+            exit(1)
      
     def print_current_state(self):
         print(f"{self.PRINT_PREFIX} self.current_state: [yellow]{self.current_state}[/yellow]")

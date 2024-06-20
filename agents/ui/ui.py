@@ -1,32 +1,38 @@
-# %%
 from __future__ import annotations
 
 import json
 
 import os
 import sys
-
-from typing import Optional
+import sounddevice as sd
 
 from rich import print
 
 from agents.agent import Agent
-from agents.state_management import ConversationStateMachine
 from agents.memory import Memory
 from agents.agent_manager.agent_manager import AgentManager
+from agents.state_management import ConversationStateMachine
 
 from utils.parsing import xmlstr2dict
 from utils.tts import tts
-from utils.llm import llm_call
+from utils.llm import llm_turn
+
+from anthropic import Anthropic
 
 
 class UI(Agent):
-    def __init__(self, term_width: int, prefix: str = "",
+    def __init__(self,
+                 client: Anthropic,
+                 prefix: str = "",
                  name: str = "UI",
                  description: str = 'Continually manages the interaction bewteen the user and yourself, the "Agent Manager". If you ever need to message the user, this agent will help you do so.',
-                 tasks: list[dict] = [{"task": 'Communicate with the user'}]):
+                 tasks: list[dict] = [{"task": 'Communicate with the user'}]) -> None:
         
-        super().__init__(term_width, prefix=prefix, name=name, description=description, tasks=tasks)
+        super().__init__(client=client,
+                         prefix=prefix,
+                         name=name,
+                         description=description,
+                         tasks=tasks)
 
         with open(os.path.join(os.environ.get("UI_DIR", "NO_PATH_SET"), os.environ.get("INPUT_DIR", "NO_PATH_SET"), "states.json")) as file:
             state_data = json.load(file)
@@ -44,7 +50,7 @@ class UI(Agent):
 
         self.parsed_response = None
     
-    def run(self, client):
+    def run(self):
         print("[bold][green]Welcome to [italic]Jarvis[/italic][/green][/bold]")
 
         while self.csm.current_state.get_hpath() != "Exit":
@@ -58,15 +64,15 @@ class UI(Agent):
                 case "PrintUIMessage":
                     self.memory.prime_all_prompts(self.csm.current_state.get_hpath(), "UI_DIR", dynamic_metaprompt=" > ")
 
-                    llm_response = llm_call(client=client,
-                                            formatted_system=self.memory.system_prompt,
-                                            formatted_messages=self.memory.conversation_history,
-                                            stop_sequences=["</output>"],
-                                            temperature=0.7)
+                    text = llm_turn(client=self.client,
+                                    prompts={'system': self.memory.get_system_prompt(),
+                                             'messages': self.memory.get_messages()},
+                                    stop_sequences=["</output>"],
+                                    temperature=0.7)
                     
-                    self.memory.store_llm_response("<output>" + llm_response.content[0].text + "</output>")
+                    self.memory.store_llm_response("<output>" + text + "</output>")
 
-                    parsed_response = xmlstr2dict(llm_response.content[0].text, client)
+                    parsed_response = xmlstr2dict(text, self.client)
                     print(f"{self.PRINT_PREFIX} parsed_response:")
                     print(parsed_response)
 
@@ -75,7 +81,13 @@ class UI(Agent):
 
                     if "action" in parsed_response and parsed_response["action"]:
                         action = parsed_response["action"]
-                        self.csm.transition("AssignAction", locals())
+
+                        if action == "REST":
+                            print(f"{self.PRINT_PREFIX} Exiting...")
+                            sd.wait()
+                            exit(0)
+                        else:
+                            self.csm.transition("AssignAction", locals())
 
                 case "AssignAction":
                     if action:

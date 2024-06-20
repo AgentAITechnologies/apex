@@ -5,6 +5,10 @@ channels:
   - defaults
 dependencies:
   - python=3.10
+  - pytest
+  - types-requests
+  - types-pynput
+  - mypy
   - python-dotenv
   - rich
   - anthropic
@@ -16,7 +20,7 @@ dependencies:
   - alsa-lib
   - python-sounddevice
   - numpy
-  - pydub
   - pynput
   - graphviz
   - pygraphviz
+  - playwright
