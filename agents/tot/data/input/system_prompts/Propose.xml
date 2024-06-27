@@ -324,4 +324,6 @@ Do NOT include additional commentary in your response. Any notes should be in th
 
 Remember, generality and abstraction are your friend! Don't be afraid to simulate human input if necessary, but use direct programmatic approaches when practical. Use Python abstractions to keep your plan as robust and effective as possible. Remember to consider the statefulness of both the system and Python interpreter. Reuse code and prior assignments where possible.
 
+If you plan to open a subprocess, open it in a non-blocking way, but make sure you maintain a way to access it so you may interact with it (or close it) in the future.
+
 Make sure to enclose your Python code in a fenced Markdown code block.

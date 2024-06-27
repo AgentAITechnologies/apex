@@ -1,8 +1,8 @@
-Evaluate the implementation of step {step_num} of task {task}{suffix}
+Evaluate the implementation candidates for step {step_num} of task {task}{suffix}
 
 <step_{step_num}>
 <plan>{plan}</plan>
 <implementation>
-{implementation}
+{proposal_candidates_str}
 </implementation>
 </step_{step_num}>

@@ -1,6 +1,7 @@
 from typing import Iterable, Optional
 
 import os
+import backoff
 
 from utils.custom_types import Message, PromptsDict
 
@@ -9,6 +10,7 @@ from anthropic.types import Message as AnthropicMessage
 from anthropic.types import ContentBlock as AnthropicContentBlock
 from anthropic.types import TextBlock as AnthropicTextBlock
 from anthropic.types import MessageParam as AnthropicMessageParam
+from anthropic import RateLimitError, InternalServerError
 
 from openai import OpenAI
 from openai.types.chat.chat_completion import ChatCompletion as OpenAIChatCompletion
@@ -38,6 +40,13 @@ def cast_messages_anthropic(messages: Iterable[Message]) -> list[AnthropicMessag
 
     return casted_messages
 
+def on_backoff_anthropic(details):
+    print(f"[red][bold]{PRINT_PREFIX} Anthropic API error - backing off {details['wait']:0.1f} seconds after {details['tries']} tries\n{details['exception']}[/bold][/red]")
+
+@backoff.on_exception(backoff.expo,
+                      (RateLimitError, InternalServerError),
+                      max_tries=5,
+                      on_backoff=on_backoff_anthropic)
 def llm_call_anthropic(client: Anthropic, system: str, messages: list[Message], stop_sequences: list[str], temperature: float) -> AnthropicMessage:
     model = os.environ.get("ANTHROPIC_MODEL")
     if model is None:
@@ -46,14 +55,21 @@ def llm_call_anthropic(client: Anthropic, system: str, messages: list[Message], 
     
     anthropic_messages = cast_messages_anthropic(messages)
     
-    message = client.messages.create(
-        model=model,
-        max_tokens=4000,
-        temperature=temperature,
-        system=system,
-        messages=anthropic_messages,
-        stop_sequences=stop_sequences,
-    )
+    try:
+        message = client.messages.create(
+            model=model,
+            max_tokens=4000,
+            temperature=temperature,
+            system=system,
+            messages=anthropic_messages,
+            stop_sequences=stop_sequences,
+        )
+    except RateLimitError as e:
+        print(f"[red][bold]{PRINT_PREFIX} Anthropic RateLimitError: {e}[/red][/bold]")
+        exit(1)
+    except InternalServerError as e:
+        print(f"[red][bold]{PRINT_PREFIX} Anthropic InternalServerError: {e}[/red][/bold]")
+        exit(1)
     
     return message
 

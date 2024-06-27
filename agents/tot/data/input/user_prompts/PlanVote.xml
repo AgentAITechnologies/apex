@@ -1,4 +1,7 @@
-Evaluate step {step_num} of the task {task}{suffix}
+Evaluate the plan candidates for step {step_num} of the task {task}{suffix}
 
 <step_{step_num}>
-<plan>{plan}</plan>
+<plan>
+{plan_candidates_str}
+</plan>
+</step_{step_num}>

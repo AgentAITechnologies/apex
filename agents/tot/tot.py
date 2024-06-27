@@ -1,11 +1,13 @@
 import os
 import json
-from typing import Optional
+import random
 
+from typing import Optional
 
 import dotenv
 
 from rich import print as rprint
+import numpy as np
 
 from agents.agent import Agent
 from agents.state_management import ConversationStateMachine
@@ -18,11 +20,12 @@ from utils.enums import Role
 from utils.custom_types import ScoresList, StrScoresDict, NumScoresDict
 from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code
 from utils.llm import llm_turns
+from utils.files import create_incrementing_directory
 
 from anthropic import Anthropic
 
 
-PLAN_COUNT_HL = int(os.environ.get("PLAN_COUNT_HL", "3"))
+# PLAN_COUNT_HL = int(os.environ.get("PLAN_COUNT_HL", "3"))
 PLAN_COUNT = int(os.environ.get("PLAN_COUNT", "3"))
 
 VOTER_COUNT = int(os.environ.get("VOTER_COUNT", "3"))
@@ -47,11 +50,24 @@ class ToT(Agent):
 
         self.client = client
 
-        with open(os.path.join(os.environ.get("TOT_DIR", "NO_PATH_SET"), os.environ.get("INPUT_DIR", "NO_PATH_SET"), "states.json")) as file:
+        tot_dir, input_dir, output_dir = os.environ.get("TOT_DIR"), os.environ.get("INPUT_DIR"), os.environ.get("OUTPUT_DIR")
+        if tot_dir is None:
+            print(f"[red][bold]{self.PRINT_PREFIX} TOT_DIR environment variable not set (check .env)[/bold][/red]")
+            exit(1)
+        if input_dir is None:
+            print(f"[red][bold]{self.PRINT_PREFIX} INPUT_DIR environment variable not set (check .env)[/bold][/red]")
+            exit(1)
+        if output_dir is None:
+            print(f"[red][bold]{self.PRINT_PREFIX} OUTPUT_DIR environment variable not set (check .env)[/bold][/red]")
+            exit(1)
+
+        self.output_dir = os.path.join(tot_dir, output_dir)
+
+        with open(os.path.join(tot_dir, input_dir, "states.json")) as file:
             state_data = json.load(file)
             rprint(f"{self.PRINT_PREFIX} loaded state_data")
 
-        with open(os.path.join(os.environ.get("TOT_DIR", "NO_PATH_SET"), os.environ.get("INPUT_DIR", "NO_PATH_SET"), "transitions.json")) as file:
+        with open(os.path.join(tot_dir, input_dir, "transitions.json")) as file:
             transition_data = json.load(file)
             rprint(f"{self.PRINT_PREFIX} loaded transition_data")
 
@@ -67,6 +83,11 @@ class ToT(Agent):
         task = xml2xmlstr(dict2xml(task_dict))
 
         rprint(f"{self.PRINT_PREFIX} task:\n{task}")
+
+        self.log_dir = create_incrementing_directory(self.output_dir, f"{self.name}_")
+
+        with open(os.path.join(self.log_dir, "unified_steps.txt"), 'w') as logfile:
+            logfile.write(task + "\n")
 
         if self.csm.current_state.name == "Done":
             self.csm.transition("Plan", locals())
@@ -95,12 +116,12 @@ class ToT(Agent):
 
                     messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
                                                  
-                    plan_candidates: set[str] = set(llm_turns(client=self.client,
+                    plan_candidates: list[str] = list(set(llm_turns(client=self.client,
                                                               prompts={"system": system_prompt,
                                                                        "messages": messages},
                                                               stop_sequences=["</plan>"],
                                                               temperature=TEMP,
-                                                              n=PLAN_COUNT))
+                                                              n=PLAN_COUNT)))
                     
                     self.unified_step['plan_candidates'] = plan_candidates
 
@@ -114,38 +135,42 @@ class ToT(Agent):
                     system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
                                                                                "task": task})
                     
-                    plan_vote_strs: dict[str, list[str]] = {}
+                    start_seq = self.open_step_tag + "<evaluation>"
+                    assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
+                    
+                    plan_votes: list[str] = []
+                    plan_index_maps: list[list[int]] = []
 
-                    for plan_candidate in plan_candidates:
+                    for _ in range(VOTER_COUNT):
+                        shuffled_indices, plan_candidates_str = self.format_candidates(plan_candidates)
+
                         user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                         "task": task,
-                                                                                                        "plan": plan_candidate,
+                                                                                                        "plan_candidates_str": plan_candidates_str,
                                                                                                         "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
-
-                        start_seq = self.open_step_tag + "<evaluation>"
-                        assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
 
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
-                        plan_vote_strs[plan_candidate] = llm_turns(client=self.client,
-                                                                   prompts={"system": system_prompt,
-                                                                            "messages": messages},
-                                                                   stop_sequences=["</evaluation>"],
-                                                                   temperature=TEMP,
-                                                                   n=VOTER_COUNT)
+                        plan_votes.append(llm_turns(client=self.client,
+                                                    prompts={"system": system_prompt,
+                                                             "messages": messages},
+                                                    stop_sequences=["</evaluation>"],
+                                                    temperature=TEMP,
+                                                    n=1)[0])
                         
-                    self.unified_step['plan_vote_strs'] = plan_vote_strs
+                        plan_index_maps.append(shuffled_indices)
 
                     self.csm.transition("SumPlanVotes", locals())
 
                 case "SumPlanVotes":
-                    plan_scores = self.reduce_scores(self.unified_step['plan_vote_strs'])
-                    self.unified_step['plan_scores'] = plan_scores
+                    plan_scores = self.reduce_scores(plan_candidates,
+                                                     plan_votes,
+                                                     plan_index_maps)
 
                     self.csm.transition("ChoosePlan", locals())
 
                 case "ChoosePlan":
-                    best_plan = self.choose(self.unified_step['plan_scores'])
+                    best_plan = self.choose(plan_candidates, plan_scores)
                     self.unified_step['best_plan'] = best_plan
 
                     self.csm.transition("Propose", locals())
@@ -170,54 +195,55 @@ class ToT(Agent):
                                               temperature=TEMP,
                                               n=PROPOSAL_COUNT)
                         
-                    proposals = ["```python" + raw_proposal + "```" for raw_proposal in raw_proposals]
-                        
-                    proposals_map: dict[str, list[str]] = {self.unified_step['best_plan']: proposals}
-
-                    self.unified_step['proposals'] = set(proposals_map[self.unified_step['best_plan']])
+                    proposal_candidates = list(set(["```python" + raw_proposal + "```" for raw_proposal in raw_proposals]))
                     
-                    if len(self.unified_step['proposals']) != 1:
+                    if len(proposal_candidates) != 1:
                         self.csm.transition("ProposeVote", locals())
                     else:
-                        self.unified_step['best_proposition'] = next(iter(self.unified_step['proposals']))
+                        self.unified_step['best_proposition'] = next(iter(proposal_candidates))
                         self.csm.transition("Exec", locals())
 
                 case "ProposeVote":
-                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": task})
+                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
+                                                                               "task": task})
                     
                     start_seq = self.open_step_tag + "<evaluation>"
                     assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
 
-                    proposal_vote_map: dict[str, list[str]] = {}
+                    proposal_votes: list[str] = []
+                    proposal_index_maps: list[list[int]] = []
                     
-                    for proposal in self.unified_step['proposals']:
+                    for _ in range(VOTER_COUNT):
+                        shuffled_indices, proposal_candidates_str = self.format_candidates(proposal_candidates)
+
                         user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                         "task": task,
                                                                                                         "plan": self.unified_step['best_plan'],
-                                                                                                        "implementation": proposal,
+                                                                                                        "proposal_candidates_str": proposal_candidates_str,
                                                                                                         "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
                         
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
-                        proposal_vote_map[proposal] = llm_turns(client=self.client,
-                                                                prompts={"system": system_prompt,
-                                                                         "messages": messages},
-                                                                stop_sequences=["</evaluation>"],
-                                                                temperature=TEMP,
-                                                                n=VOTER_COUNT)
-
-                    self.unified_step['proposal_vote_strs'] = proposal_vote_map
+                        proposal_votes.append(llm_turns(client=self.client,
+                                                        prompts={"system": system_prompt,
+                                                                "messages": messages},
+                                                        stop_sequences=["</evaluation>"],
+                                                        temperature=TEMP,
+                                                        n=1)[0])
+                        
+                        proposal_index_maps.append(shuffled_indices)
 
                     self.csm.transition("SumProposeVotes", locals())
 
                 case "SumProposeVotes":
-                    proposal_scores = self.reduce_scores(self.unified_step['proposal_vote_strs'], omit_categories=["specificity"])
-                    self.unified_step['proposal_scores'] = proposal_scores
+                    proposal_scores = self.reduce_scores(proposal_candidates,
+                                                         proposal_votes,
+                                                         proposal_index_maps)
 
                     self.csm.transition("ChooseProposition", locals())
 
                 case "ChooseProposition":
-                    best_proposition = self.choose(self.unified_step['proposal_scores'])
+                    best_proposition = self.choose(proposal_candidates, proposal_scores)
                     self.unified_step['best_proposition'] = best_proposition
 
                     self.csm.transition("Exec", locals())
@@ -247,12 +273,7 @@ class ToT(Agent):
                     self.unified_step['output'] = stdout
                     self.unified_step['error'] = stderr
 
-                    if stderr:
-                        self.next_step()
-                        self.csm.transition("PlanErrorFix", locals())
-
-                    else:
-                        self.csm.transition("ExecVote", locals())
+                    self.csm.transition("ExecVote", locals())
 
                 case "PlanErrorFix":
                     previous_step = self.unified_steps[-1]
@@ -267,12 +288,12 @@ class ToT(Agent):
 
                     messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
                                                  
-                    plan_candidates: set[str] = set(llm_turns(client=self.client,
-                                                              prompts={"system": system_prompt,
-                                                                       "messages": messages},
-                                                              stop_sequences=["</plan>"],
-                                                              temperature=TEMP,
-                                                              n=PLAN_COUNT))
+                    plan_candidates: list[str] = list(set(llm_turns(client=self.client,
+                                                                    prompts={"system": system_prompt,
+                                                                            "messages": messages},
+                                                                    stop_sequences=["</plan>"],
+                                                                    temperature=TEMP,
+                                                                    n=PLAN_COUNT)))
                     
                     self.unified_step['plan_candidates'] = plan_candidates
 
@@ -308,12 +329,15 @@ class ToT(Agent):
                     self.csm.transition("SumExecVote", locals())
 
                 case "SumExecVote":
-                    avg_yes_votes = self.reduce_scores_exec(self.unified_step)
+                    avg_yes_votes, avg_error_votes = self.reduce_scores_exec(self.unified_step)
+
+                    self.next_step()
 
                     if avg_yes_votes > 0.5:
                         self.csm.transition("Done", locals())
+                    elif avg_error_votes > 0.5:
+                        self.csm.transition("PlanErrorFix", locals())
                     else:
-                        self.next_step()
                         self.csm.transition("Plan", locals())
 
         self.code_executor.finalize_task(task)
@@ -342,6 +366,15 @@ class ToT(Agent):
 {self.unified_step['error']}
 </stderr>
 {self.close_step_tag}"""
+        
+        with open(os.path.join(self.log_dir, "unified_steps.txt"), 'a') as logfile:
+            logfile.write("\n")
+
+            logfile.write("<user>")
+            logfile.write(unified_user_str + "</user>\n\n")
+
+            logfile.write("<assistant>\n")
+            logfile.write(unified_assistant_str + "\n</assistant>\n")
 
         unified_user_msg = get_msg(Role.USER, unified_user_str)
         unified_assistant_msg = get_msg(Role.ASSISTANT, unified_assistant_str)
@@ -354,37 +387,57 @@ class ToT(Agent):
         self.unified_step: dict = {}
         self.open_step_tag = f"<step_{self.step_num}>"
         self.close_step_tag = f"</step_{self.step_num}>"
+
+    def format_candidates(self, candidates: list[str]):
+        shuffled_indices = [i for i in range(len(candidates))]
+        random.shuffle(shuffled_indices)
+
+        formatted_candidates: str = "<candidates>\n"
+
+        for i, shuffled_i in enumerate(shuffled_indices):
+            formatted_candidates += f"<candidate_{i+1}>\n"
+            formatted_candidates += f"{candidates[shuffled_i]}"
+            formatted_candidates += f"</candidate_{i+1}>\n"
+
+        formatted_candidates += "</candidates>\n"
+
+        return shuffled_indices, formatted_candidates
     
-    def reduce_scores(self, step_plan_vote_strs: dict[str, list[str]], omit_categories: Optional[list[str]] = None) -> NumScoresDict:
-        if not omit_categories:
-            omit_categories = []
-        
-        avg_scores: NumScoresDict = {step_plan: {eval_category: 0.0 for eval_category in EVAL_CATEGORIES if eval_category not in omit_categories}
-                                     for step_plan in step_plan_vote_strs.keys()}
- 
-        scores: dict[str, list[StrScoresDict]] = {}
+    def choose(self, candidates: list[str], scores: list[int]) -> str:
+        best_plan = candidates[np.argmax(scores)]
+        rprint(f"{self.PRINT_PREFIX} best_plan:\n{best_plan}")
 
-        for step_plan, vote_strs in step_plan_vote_strs.items():
-            for vote_str in vote_strs:
-                if step_plan not in scores:
-                    scores[step_plan] = []
-
-                parsed_scores: StrScoresDict = xmlstr2dict(vote_str, self.client)
-                scores[step_plan].append(parsed_scores)
-
-        for step_plan, scores_list in scores.items():
-            for score in scores_list:
-                for category in EVAL_CATEGORIES:
-                    if category not in omit_categories:
-                        avg_scores[step_plan][category] += int(score[category]['score']) / VOTER_COUNT
-
-        rprint(f"{self.PRINT_PREFIX} avg_scores:\n{avg_scores}")
-        
-        return avg_scores
+        return best_plan
     
-    def reduce_scores_exec(self, unified_step: dict[str, set[str] | str | list[str]]) -> float:
+    def reduce_scores(self, plan_candidates: list[str], candidate_votes: list[str], index_maps: list[list[int]]) -> list[int]:
+        scores = [0] * len(plan_candidates)
+
+        assert len(candidate_votes) == len(index_maps)
+
+        for vote_i, vote in enumerate(candidate_votes):
+            parsed_scores = xmlstr2dict(vote, self.client)
+
+            best_candidate_shuffled_idx = int(parsed_scores['best_candidate'])
+            worst_candidate_shuffled_idx = int(parsed_scores['worst_candidate'])
+
+            index_map = index_maps[vote_i]
+
+            best_candidate_abs_idx = index_map[best_candidate_shuffled_idx-1]
+            worst_candidate_abs_idx = index_map[worst_candidate_shuffled_idx-1]
+
+            scores[best_candidate_abs_idx] += 1
+            scores[worst_candidate_abs_idx] -= 1
+
+        rprint(f"{self.PRINT_PREFIX} scores: {scores}")
+
+        return scores
+
+    def reduce_scores_exec(self, unified_step: dict[str, set[str] | str | list[str]]) -> tuple[float, float]:
         sum_yes_votes = 0
         avg_yes_votes = 0
+
+        sum_error_votes = 0
+        avg_error_votes = 0
 
         for exec_vote_str in unified_step['exec_vote_strs']:
             parsed_scores = xmlstr2dict(exec_vote_str, self.client)
@@ -392,26 +445,16 @@ class ToT(Agent):
             if parsed_scores['complete'] == "yes":
                 sum_yes_votes += 1
 
+            if parsed_scores['error'] == "yes":
+                sum_error_votes += 1
+
         avg_yes_votes = sum_yes_votes / VOTER_COUNT
+        avg_error_votes = sum_error_votes / VOTER_COUNT
         
         rprint(f"{self.PRINT_PREFIX} sum_yes_votes: {sum_yes_votes}")
         rprint(f"{self.PRINT_PREFIX} avg_yes_votes: {avg_yes_votes}")
+
+        rprint(f"{self.PRINT_PREFIX} sum_error_votes: {sum_error_votes}")
+        rprint(f"{self.PRINT_PREFIX} avg_error_votes: {avg_error_votes}")
         
-        return avg_yes_votes
-
-    def choose(self, scores: NumScoresDict) -> str:
-        def sort_dicts(dicts) -> ScoresList:
-            def get_mean_score(item) -> float:
-                scores = item[1].values()
-                return sum(scores) / len(scores)
-
-            return sorted(dicts.items(), key=get_mean_score, reverse=True)
-        
-        avg_scores_sorted: ScoresList = sort_dicts(scores)
-
-        best, best_scores = avg_scores_sorted[0]
-
-        rprint(f"{self.PRINT_PREFIX} best:\n{best}")
-        rprint(f"{self.PRINT_PREFIX} best_scores:\n{best_scores}")
-
-        return best
+        return avg_yes_votes, avg_error_votes

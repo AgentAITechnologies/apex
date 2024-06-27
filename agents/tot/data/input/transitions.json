@@ -12,7 +12,6 @@
     { "trigger": "ChooseProposition", "source": "SumProposeVotes", "dest": "ChooseProposition" },
     { "trigger": "Exec", "source": "ChooseProposition", "dest": "Exec" },
 
-    { "trigger": "PlanErrorFix", "source": "Exec", "dest": "PlanErrorFix" },
     { "trigger": "ExecVote", "source": "Exec", "dest": "ExecVote" },
 
     { "trigger": "PlanVote", "source": "PlanErrorFix", "dest": "PlanVote" },
@@ -21,6 +20,7 @@
     
     { "trigger": "Plan", "source": "SumExecVote", "dest": "Plan" },
     { "trigger": "Done", "source": "SumExecVote", "dest": "Done" },
+    { "trigger": "PlanErrorFix", "source": "SumExecVote", "dest": "PlanErrorFix" },
 
     { "trigger": "Plan", "source": "Done", "dest": "Plan" }
 

@@ -20,6 +20,8 @@ Remember, generality and abstraction are your friend! Don't be afraid to simulat
 
 Be as specific as possible given the knowledge and context you have at hand. Remember, your step descriptions will be used to generate code, so don't be ambiguous, but also don't make assumptions.
 
+If you plan to open a subprocess, it should be opened in a non-blocking way such that you maintain a way to access it so you may interact with it (or close it) in the future.
+
 Now it is time to fix the error so that the task {task} may be completed successfully.
 
 Propose a solution that may be easily transcribed into Python code. Do NOT write the code, simply explain how to fix this error in plain English that may be converted to Python code later.

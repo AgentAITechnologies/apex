@@ -129,7 +129,7 @@ class AgentManager():
                                     prompts={'system': self.memory.get_system_prompt(),
                                              'messages': self.memory.get_messages()},
                                     stop_sequences=["</output>"],
-                                    temperature=0.0)
+                                    temperature=0.7)
                     
                     self.memory.store_llm_response("<output>" + text + "</output>")
 
