@@ -2,7 +2,7 @@ import os
 import json
 import random
 
-from typing import Optional
+from typing import Literal, Optional
 
 import dotenv
 
@@ -17,8 +17,8 @@ from agents.prompt_management import load_system_prompt, load_user_prompt, get_m
 from agents.memory import Memory
 
 from utils.enums import Role
-from utils.custom_types import ScoresList, StrScoresDict, NumScoresDict
-from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code
+from utils.custom_types import FeedbackDict, ScoresList, StrScoresDict, NumScoresDict
+from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, strip_step_tags
 from utils.llm import llm_turns
 from utils.files import create_incrementing_directory
 
@@ -32,6 +32,8 @@ VOTER_COUNT = int(os.environ.get("VOTER_COUNT", "3"))
 PROPOSAL_COUNT = int(os.environ.get("PROPOSAL_COUNT", "3"))
 
 EVAL_CATEGORIES = ["correctness", "elegance", "understandability", "specificity", "overall"]
+
+RESULT_FILENAME = "run_results.txt"
 
 TEMP = 0.7
 
@@ -86,7 +88,7 @@ class ToT(Agent):
 
         self.log_dir = create_incrementing_directory(self.output_dir, f"{self.name}_")
 
-        with open(os.path.join(self.log_dir, "unified_steps.txt"), 'w') as logfile:
+        with open(os.path.join(self.log_dir, RESULT_FILENAME), 'w') as logfile:
             logfile.write(task + "\n")
 
         if self.csm.current_state.name == "Done":
@@ -340,13 +342,91 @@ class ToT(Agent):
                     else:
                         self.csm.transition("Plan", locals())
 
-        self.code_executor.finalize_task(task)
+        self.code_executor.condense_code_files(task)
+        
+        feedback = self.get_feedback(task, False)
+        self.log_feedback(feedback)
 
         rprint(f"{self.PRINT_PREFIX} done!")
 
         return
     
     def next_step(self) -> None:
+        unified_user_str, unified_assistant_str = self.step2str()
+        
+        self.log_step(unified_user_str, unified_assistant_str)
+
+        unified_user_msg = get_msg(Role.USER, unified_user_str)
+        unified_assistant_msg = get_msg(Role.ASSISTANT, unified_assistant_str)
+
+        self.unified_memory.add_msg(unified_user_msg)
+        self.unified_memory.add_msg(unified_assistant_msg)
+
+        self.step_num += 1
+        self.unified_steps.append(self.unified_step)
+        self.unified_step: dict = {}
+        self.open_step_tag = f"<step_{self.step_num}>"
+        self.close_step_tag = f"</step_{self.step_num}>"
+
+    def log_step(self, unified_user_str, unified_assistant_str) -> None:
+        with open(os.path.join(self.log_dir, RESULT_FILENAME), 'a') as logfile:
+            logfile.write("\n")
+
+            logfile.write("<user>")
+            logfile.write(unified_user_str + "</user>\n\n")
+
+            logfile.write("<assistant>\n")
+            logfile.write(unified_assistant_str + "\n</assistant>\n")
+    
+    def log_feedback(self, feedback: FeedbackDict) -> None:
+        with open(os.path.join(self.log_dir, RESULT_FILENAME), 'a') as logfile:
+            logfile.write("\n")
+
+            logfile.write("<human_feedback>\n")
+            logfile.write(f"<success>{feedback['success']}</success>\n")
+            logfile.write(f"<details>{feedback['details']}</details>\n")
+            logfile.write("</human_feedback>\n")
+
+    # TODO: Summarize steps for easy human evaluation and pretty print the task
+    def get_feedback(self, task: str, cutoff: bool) -> FeedbackDict:
+        feedback_intro = f"\nThe task:\n{task}\n"
+        
+        if not cutoff:
+            feedback_intro += "is believed to be complete according to your specifications, however this determination may have been in error."
+        else:
+            feedback_intro += "was interrupted and will be classified as a failure."
+
+        feedback_intro += """
+[deep_sky_blue1][bold]Your feedback is instrumental in evolving this virtual assistant.[/bold]
+By sharing your insights, you're directly shaping the future of open conversational AI technology.
+[italic]If you do not wish to be prompted for feedback in the future, simply disable this feature in your .env file.[/italic][/deep_sky_blue1]
+"""
+        rprint(feedback_intro)
+        
+        if not cutoff:
+            success_prompt = "Was the task completed correctly, even if it took a while or involved self-correcting errors?"
+            success = get_yes_no_input(success_prompt)
+        else:
+            success = False
+
+        if success:
+            details_prompt = "How could future completions of this task be better?\n(e.g., more efficient, having fewer side effects, or being more closely aligned with your intentions)?"
+        else:
+            details_prompt = "How would you characterize this failure? Please be as specific as possible to help us be more helpful to you in the future."
+
+        
+        rprint(details_prompt, end=" ")
+
+        details = input()
+
+        feedback: FeedbackDict = {
+            "success": success,
+            "details": details
+        }
+
+        return feedback
+
+    def step2str(self) -> tuple[str, str]:
         if self.step_num > 1:
             suffix = ", taking into consideration the results of what you have already done in prior steps:"
         else:
@@ -366,27 +446,8 @@ class ToT(Agent):
 {self.unified_step['error']}
 </stderr>
 {self.close_step_tag}"""
-        
-        with open(os.path.join(self.log_dir, "unified_steps.txt"), 'a') as logfile:
-            logfile.write("\n")
 
-            logfile.write("<user>")
-            logfile.write(unified_user_str + "</user>\n\n")
-
-            logfile.write("<assistant>\n")
-            logfile.write(unified_assistant_str + "\n</assistant>\n")
-
-        unified_user_msg = get_msg(Role.USER, unified_user_str)
-        unified_assistant_msg = get_msg(Role.ASSISTANT, unified_assistant_str)
-
-        self.unified_memory.add_msg(unified_user_msg)
-        self.unified_memory.add_msg(unified_assistant_msg)
-
-        self.step_num += 1
-        self.unified_steps.append(self.unified_step)
-        self.unified_step: dict = {}
-        self.open_step_tag = f"<step_{self.step_num}>"
-        self.close_step_tag = f"</step_{self.step_num}>"
+        return unified_user_str, unified_assistant_str
 
     def format_candidates(self, candidates: list[str]):
         shuffled_indices = [i for i in range(len(candidates))]

@@ -154,3 +154,17 @@ def extract_steps(xml_string):
     # Convert each match to a tuple of (step number as int, step text)
     results = [f"<step_{step}>{text.strip()}</step_{step}>" for step, text in matches]
     return results
+
+def get_yes_no_input(prompt: str, rich_open: str = "", rich_close: str = "") -> bool:
+    if bool(rich_open) ^ bool(rich_close):
+        print(f"[red][bold]{PRINT_PREFIX} Only one parameter passed for rich (needs eith both rich_open and rich_close, or neither)[/bold][/red]")
+        exit(1)
+
+    while True:
+        user_input = input(prompt + " (y/n): ").lower().strip()
+        if user_input in ['y', 'yes']:
+            return True
+        elif user_input in ['n', 'no']:
+            return False
+        else:
+            print("Invalid input. Please enter 'y' or 'n'.")

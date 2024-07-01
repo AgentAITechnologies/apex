@@ -51,7 +51,7 @@ class UI(Agent):
         self.parsed_response = None
     
     def run(self):
-        print("[bold][green]Welcome to [italic]Jarvis[/italic][/green][/bold]")
+        print("[bold][deep_sky_blue1]Welcome to [italic]Jarvis[/italic][/deep_sky_blue1][/bold]")
 
         while self.csm.current_state.get_hpath() != "Exit":
             print(f"{self.PRINT_PREFIX} self.csm.current_state.get_hpath(): {self.csm.current_state.get_hpath()}")

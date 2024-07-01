@@ -83,10 +83,10 @@ class CodeExecutor:
             except FileNotFoundError:
                 print(f"[red][bold]{self.PRINT_PREFIX} Code for step {step_num} unable to be written to disk[/bold][/red]")
                 break
-
-    def finalize_task(self, task: str) -> None:
-        with open(os.path.join(self.CODE_DIR, self.PRIOR_CODE_FILENAME), "a") as prior_code_file:
-            prior_code_file.write(f"'''\n{task}\n'''\n")
+      
+    def condense_code_files(self, task: str) -> None:
+        with open(os.path.join(self.CODE_DIR, self.PRIOR_CODE_FILENAME), "a") as exec_result_file:
+            exec_result_file.write(f"'''\n{task}\n'''\n")
 
             for dir, dirnames, filenames in os.walk(self.CODE_DIR):
                 sorted_filenames = sort_filenames_ny_num(filenames, r'step_(\d+)\.py')
@@ -96,8 +96,8 @@ class CodeExecutor:
                         continue
 
                     with open(os.path.join(self.CODE_DIR, filename), "r") as code_file:
-                        prior_code_file.write(f"# <{filename.split('.')[0]}>\n")
-                        prior_code_file.write(code_file.read().strip()+"\n")
-                        prior_code_file.write(f"# </{filename.split('.')[0]}>\n\n")
+                        exec_result_file.write(f"# <{filename.split('.')[0]}>\n")
+                        exec_result_file.write(code_file.read().strip()+"\n")
+                        exec_result_file.write(f"# </{filename.split('.')[0]}>\n\n")
 
                     os.remove(os.path.join(self.CODE_DIR, filename))

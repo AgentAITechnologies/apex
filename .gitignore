@@ -43,3 +43,6 @@ conda-debug.log
 
 # pytest
 .pytest_cache/
+
+# media assets
+media_assets/
