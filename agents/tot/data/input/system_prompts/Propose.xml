@@ -322,6 +322,8 @@ You are assigned this task from the user: {task}
 
 Do NOT include additional commentary in your response. Any notes should be in the form of inline code comments.
 
+Do NOT include the if __name__ == "__main__" idiom, as this code is being executed inline and is NOT __main__.
+
 Remember, generality and abstraction are your friend! Don't be afraid to simulate human input if necessary, but use direct programmatic approaches when practical. Use Python abstractions to keep your plan as robust and effective as possible. Remember to consider the statefulness of both the system and Python interpreter. Reuse code and prior assignments where possible.
 
 If you plan to open a subprocess, open it in a non-blocking way, but make sure you maintain a way to access it so you may interact with it (or close it) in the future.

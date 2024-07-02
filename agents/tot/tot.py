@@ -118,12 +118,12 @@ class ToT(Agent):
 
                     messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
                                                  
-                    plan_candidates: list[str] = list(set(llm_turns(client=self.client,
-                                                              prompts={"system": system_prompt,
-                                                                       "messages": messages},
-                                                              stop_sequences=["</plan>"],
-                                                              temperature=TEMP,
-                                                              n=PLAN_COUNT)))
+                    plan_candidates: list[str] = llm_turns(client=self.client,
+                                                           prompts={"system": system_prompt,
+                                                           "messages": messages},
+                                                           stop_sequences=["</plan>"],
+                                                           temperature=TEMP,
+                                                           n=PLAN_COUNT)
                     
                     self.unified_step['plan_candidates'] = plan_candidates
 
@@ -197,7 +197,7 @@ class ToT(Agent):
                                               temperature=TEMP,
                                               n=PROPOSAL_COUNT)
                         
-                    proposal_candidates = list(set(["```python" + raw_proposal + "```" for raw_proposal in raw_proposals]))
+                    proposal_candidates = ["```python" + raw_proposal + "```" for raw_proposal in raw_proposals]
                     
                     if len(proposal_candidates) != 1:
                         self.csm.transition("ProposeVote", locals())
@@ -290,12 +290,12 @@ class ToT(Agent):
 
                     messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
                                                  
-                    plan_candidates: list[str] = list(set(llm_turns(client=self.client,
-                                                                    prompts={"system": system_prompt,
-                                                                            "messages": messages},
-                                                                    stop_sequences=["</plan>"],
-                                                                    temperature=TEMP,
-                                                                    n=PLAN_COUNT)))
+                    plan_candidates: list[str] = llm_turns(client=self.client,
+                                                           prompts={"system": system_prompt,
+                                                                   "messages": messages},
+                                                           stop_sequences=["</plan>"],
+                                                           temperature=TEMP,
+                                                           n=PLAN_COUNT)
                     
                     self.unified_step['plan_candidates'] = plan_candidates
 
@@ -493,7 +493,7 @@ By sharing your insights, you're directly shaping the future of open conversatio
 
         return scores
 
-    def reduce_scores_exec(self, unified_step: dict[str, set[str] | str | list[str]]) -> tuple[float, float]:
+    def reduce_scores_exec(self, unified_step: dict[str, str | list[str]]) -> tuple[float, float]:
         sum_yes_votes = 0
         avg_yes_votes = 0
 

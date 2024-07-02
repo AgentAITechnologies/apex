@@ -71,7 +71,7 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
             if element.text is None:
                 return None
             else:
-                return element.text.strip()
+                return element.text # .strip() if element.text != ' ' else element.text
         else:
             result = {}
             for child in element:

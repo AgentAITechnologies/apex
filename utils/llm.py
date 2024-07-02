@@ -3,6 +3,8 @@ from typing import Iterable, Optional
 import os
 import backoff
 
+import concurrent.futures
+
 from utils.custom_types import Message, PromptsDict
 
 from anthropic import Anthropic
@@ -45,7 +47,7 @@ def on_backoff_anthropic(details):
 
 @backoff.on_exception(backoff.expo,
                       (RateLimitError, InternalServerError),
-                      max_tries=5,
+                      max_tries=10,
                       on_backoff=on_backoff_anthropic)
 def llm_call_anthropic(client: Anthropic, system: str, messages: list[Message], stop_sequences: list[str], temperature: float) -> AnthropicMessage:
     model = os.environ.get("ANTHROPIC_MODEL")
@@ -112,6 +114,68 @@ def llm_call_openai(client: OpenAI, system: str, messages: list[Message], stop_s
 def llm_turn(client: Anthropic | OpenAI, prompts: PromptsDict, stop_sequences: list[str], temperature: float) -> str:
     return llm_turns(client, prompts, stop_sequences, temperature, n=1)[0]
 
+def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict, stop_sequences: list[str], temperature: float, n: int) -> list[str]:
+    if isinstance(prompts['system'], str) and isinstance(prompts['messages'], list):
+        texts: list[Optional[str]] = [None] * n
+
+        if isinstance(client, Anthropic):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=n) as executor:
+                futures = [
+                    executor.submit(
+                        llm_call_anthropic, 
+                        client, 
+                        prompts['system'], 
+                        prompts['messages'], 
+                        stop_sequences, 
+                        temperature
+                    ) for _ in range(n)
+                ]
+                
+                concurrent.futures.wait(futures)
+
+                for i, future in enumerate(futures):
+                    try:
+                        llm_response = future.result()
+                        print(f"{PRINT_PREFIX} llm_response[{i}]: {llm_response}")
+
+                        anthropic_content: AnthropicContentBlock = llm_response.content[0]
+                        if isinstance(anthropic_content, AnthropicTextBlock):
+                            text: str = anthropic_content.text
+                            texts[i] = text
+                        else:
+                            texts[i] = None
+                            
+                    except Exception as exc:
+                        print(f"{PRINT_PREFIX} Generated an exception: {exc}")
+                        texts[i] = None
+
+        elif isinstance(client, OpenAI):
+            llm_response = llm_call_openai(client, prompts['system'], prompts['messages'], stop_sequences, temperature, n)
+
+            print(f"{PRINT_PREFIX} llm_response[0:{n}]: {llm_response}")
+
+            choices: list[Choice] = llm_response.choices
+
+            for choice in choices:
+                message: OpenAIChatCompletionMessage = choice.message
+                openai_content: Optional[str] = message.content
+                
+                if openai_content is not None:
+                    texts.append(openai_content)
+                else:
+                    print(f"[red][bold]{PRINT_PREFIX} empty openai_content: {llm_response}[/bold][/red]")
+                    exit(1)   
+
+        result = [text for text in texts if text is not None]
+        return result
+    
+    else:
+        print(f"""[red][bold]{PRINT_PREFIX} expected prompts['system'] to be str and prompts['messages'] to be list,
+        got {type(prompts['system'])} and {type(prompts['messages'])} respectively instead[/bold][/red]""")
+        exit(1)
+
+
+'''
 def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict, stop_sequences: list[str], temperature: float, n) -> list[str]:
     if isinstance(prompts['system'], str) and isinstance(prompts['messages'], list):
         texts: list[str] = []
@@ -151,3 +215,4 @@ def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict, stop_sequences: 
         print(f"""[red][bold]{PRINT_PREFIX} expexted prompts['system'] to be str and prompts['messages'] to be list,
 got {type(prompts['system'])} and {type(prompts['messages'])} respectively instead[/bold][/red]""")
         exit(1)
+        '''
