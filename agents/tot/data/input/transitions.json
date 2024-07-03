@@ -22,6 +22,18 @@
     { "trigger": "Done", "source": "SumExecVote", "dest": "Done" },
     { "trigger": "PlanErrorFix", "source": "SumExecVote", "dest": "PlanErrorFix" },
 
-    { "trigger": "Plan", "source": "Done", "dest": "Plan" }
+    { "trigger": "Plan", "source": "Done", "dest": "Plan" },
+
+    { "trigger": "Interrupt", "source": "Plan", "dest": "Done" },
+    { "trigger": "Interrupt", "source": "PlanVote", "dest": "Done" },
+    { "trigger": "Interrupt", "source": "SumPlanVotes", "dest": "Done" },
+    { "trigger": "Interrupt", "source": "ChoosePlan", "dest": "Done" },
+    { "trigger": "Interrupt", "source": "Propose", "dest": "Done" },
+    { "trigger": "Interrupt", "source": "ProposeVote", "dest": "Done" },
+    { "trigger": "Interrupt", "source": "SumProposeVotes", "dest": "Done" },
+    { "trigger": "Interrupt", "source": "ChooseProposition", "dest": "Done" },
+    { "trigger": "Interrupt", "source": "PlanErrorFix", "dest": "Done" },
+    { "trigger": "Interrupt", "source": "ExecVote", "dest": "Done" },
+    { "trigger": "Interrupt", "source": "SumExecVote", "dest": "Done" }
 
 ]

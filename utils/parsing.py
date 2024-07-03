@@ -168,3 +168,6 @@ def get_yes_no_input(prompt: str, rich_open: str = "", rich_close: str = "") -> 
             return False
         else:
             print("Invalid input. Please enter 'y' or 'n'.")
+
+def remove_escape_key(string: str) -> str:
+    return string.replace('^[', '').replace('\x1b', '')

@@ -1,8 +1,9 @@
 import os
 import json
 import random
+from typing import Optional
 
-from typing import Literal, Optional
+from pynput import keyboard
 
 import dotenv
 
@@ -17,19 +18,17 @@ from agents.prompt_management import load_system_prompt, load_user_prompt, get_m
 from agents.memory import Memory
 
 from utils.enums import Role
-from utils.custom_types import FeedbackDict, ScoresList, StrScoresDict, NumScoresDict
-from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, strip_step_tags
+from utils.custom_types import FeedbackDict
+from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, remove_escape_key
 from utils.llm import llm_turns
 from utils.files import create_incrementing_directory
 
 from anthropic import Anthropic
 
 
-# PLAN_COUNT_HL = int(os.environ.get("PLAN_COUNT_HL", "3"))
-PLAN_COUNT = int(os.environ.get("PLAN_COUNT", "3"))
-
-VOTER_COUNT = int(os.environ.get("VOTER_COUNT", "3"))
-PROPOSAL_COUNT = int(os.environ.get("PROPOSAL_COUNT", "3"))
+PLAN_COUNT = int(os.environ.get("PLAN_COUNT", "5"))
+VOTER_COUNT = int(os.environ.get("VOTER_COUNT", "5"))
+PROPOSAL_COUNT = int(os.environ.get("PROPOSAL_COUNT", "5"))
 
 EVAL_CATEGORIES = ["correctness", "elegance", "understandability", "specificity", "overall"]
 
@@ -79,277 +78,313 @@ class ToT(Agent):
 
         self.unified_memory = Memory(prefix=self.PRINT_PREFIX)
         self.unified_steps = []
-    
+
+        self.interrupt_listener = keyboard.Listener(on_press=self.on_press)
+        self.interrupt_listener.start()
+
+    def on_press(self, key):
+        if key == keyboard.Key.esc:
+            self.interrupted = True
+
+    def check_interrupt(self):
+        if self.interrupted:
+            raise KeyboardInterrupt
+
     def run(self) -> None:
-        task_dict = self.tasks[-1]
-        task = xml2xmlstr(dict2xml(task_dict))
+        self.interrupted = False
 
-        rprint(f"{self.PRINT_PREFIX} task:\n{task}")
+        try:
+            self.current_task: Optional[str] = xml2xmlstr(dict2xml(self.tasks[-1]))
 
-        self.log_dir = create_incrementing_directory(self.output_dir, f"{self.name}_")
+            rprint(f"{self.PRINT_PREFIX}[yellow][bold] Press the escape key at any time to stop the agent[/bold][/yellow]")
 
-        with open(os.path.join(self.log_dir, RESULT_FILENAME), 'w') as logfile:
-            logfile.write(task + "\n")
+            rprint(f"{self.PRINT_PREFIX} task:\n{self.current_task}")
 
-        if self.csm.current_state.name == "Done":
-            self.csm.transition("Plan", locals())
+            self.log_dir = create_incrementing_directory(self.output_dir, f"{self.name}_")
 
-        self.step_num = 1
-        self.open_step_tag = f"<step_{self.step_num}>"
-        self.close_step_tag = f"</step_{self.step_num}>"
+            with open(os.path.join(self.log_dir, RESULT_FILENAME), 'w') as logfile:
+                logfile.write(self.current_task + "\n")
 
-        self.unified_step: dict = {}
+            if self.csm.current_state.name == "Done":
+                self.csm.transition("Plan", locals())
 
-        while self.csm.current_state.name != "Done":
-            state_path = self.csm.current_state.get_hpath()
-                                           
-            match state_path:
+            self.step_num = 1
+            self.open_step_tag = f"<step_{self.step_num}>"
+            self.close_step_tag = f"</step_{self.step_num}>"
+
+            self.unified_step: dict = {}
+
+            while self.csm.current_state.name != "Done":
+                self.check_interrupt()
                 
-                case "Plan":
-                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
-                                                                               "task": task})
+                state_path = self.csm.current_state.get_hpath()
+                                            
+                match state_path:
                     
-                    user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
-                                                                                                    "task": task,
-                                                                                                    "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
-                    
-                    start_seq = self.open_step_tag + "<plan>"
-                    assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
-
-                    messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
-                                                 
-                    plan_candidates: list[str] = llm_turns(client=self.client,
-                                                           prompts={"system": system_prompt,
-                                                           "messages": messages},
-                                                           stop_sequences=["</plan>"],
-                                                           temperature=TEMP,
-                                                           n=PLAN_COUNT)
-                    
-                    self.unified_step['plan_candidates'] = plan_candidates
-
-                    if len(self.unified_step['plan_candidates']) != 1:
-                        self.csm.transition("PlanVote", locals())
-                    else:
-                        self.unified_step['best_plan'] = next(iter(self.unified_step['plan_candidates']))
-                        self.csm.transition("Propose", locals())
-
-                case "PlanVote":
-                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
-                                                                               "task": task})
-                    
-                    start_seq = self.open_step_tag + "<evaluation>"
-                    assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
-                    
-                    plan_votes: list[str] = []
-                    plan_index_maps: list[list[int]] = []
-
-                    for _ in range(VOTER_COUNT):
-                        shuffled_indices, plan_candidates_str = self.format_candidates(plan_candidates)
-
+                    case "Plan":
+                        system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
+                                                                                "task": self.current_task})
+                        
                         user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
-                                                                                                        "task": task,
-                                                                                                        "plan_candidates_str": plan_candidates_str,
+                                                                                                        "task": self.current_task,
                                                                                                         "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
+                        
+                        start_seq = self.open_step_tag + "<plan>"
+                        assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
 
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
-                        plan_votes.append(llm_turns(client=self.client,
-                                                    prompts={"system": system_prompt,
-                                                             "messages": messages},
-                                                    stop_sequences=["</evaluation>"],
-                                                    temperature=TEMP,
-                                                    n=1)[0])
+                        # re-implement set() optimizaiton after verifying it doesn't interfere with shuffling logic                     
+                        plan_candidates: list[str] = llm_turns(client=self.client,
+                                                            prompts={"system": system_prompt,
+                                                            "messages": messages},
+                                                            stop_sequences=["</plan>"],
+                                                            temperature=TEMP,
+                                                            n=PLAN_COUNT)
                         
-                        plan_index_maps.append(shuffled_indices)
+                        self.unified_step['plan_candidates'] = plan_candidates
 
-                    self.csm.transition("SumPlanVotes", locals())
+                        if len(self.unified_step['plan_candidates']) != 1:
+                            self.csm.transition("PlanVote", locals())
+                        else:
+                            self.unified_step['best_plan'] = next(iter(self.unified_step['plan_candidates']))
+                            self.csm.transition("Propose", locals())
 
-                case "SumPlanVotes":
-                    plan_scores = self.reduce_scores(plan_candidates,
-                                                     plan_votes,
-                                                     plan_index_maps)
-
-                    self.csm.transition("ChoosePlan", locals())
-
-                case "ChoosePlan":
-                    best_plan = self.choose(plan_candidates, plan_scores)
-                    self.unified_step['best_plan'] = best_plan
-
-                    self.csm.transition("Propose", locals())
-
-                case "Propose":
-                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": task})
-
-                    user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
-                                                                                                    "task": task,
-                                                                                                    "plan": self.unified_step['best_plan'],
-                                                                                                    "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
-                    
-                    start_seq = self.open_step_tag + "<implementation>" + "\n" + "```python"
-                    assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
-                    
-                    messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
-
-                    raw_proposals = llm_turns(client=self.client,
-                                              prompts={"system": system_prompt,
-                                                       "messages": messages},
-                                              stop_sequences=["```"],
-                                              temperature=TEMP,
-                                              n=PROPOSAL_COUNT)
+                    # TODO: Parallelize
+                    case "PlanVote":
+                        system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
+                                                                                "task": self.current_task})
                         
-                    proposal_candidates = ["```python" + raw_proposal + "```" for raw_proposal in raw_proposals]
-                    
-                    if len(proposal_candidates) != 1:
-                        self.csm.transition("ProposeVote", locals())
-                    else:
-                        self.unified_step['best_proposition'] = next(iter(proposal_candidates))
-                        self.csm.transition("Exec", locals())
-
-                case "ProposeVote":
-                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
-                                                                               "task": task})
-                    
-                    start_seq = self.open_step_tag + "<evaluation>"
-                    assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
-
-                    proposal_votes: list[str] = []
-                    proposal_index_maps: list[list[int]] = []
-                    
-                    for _ in range(VOTER_COUNT):
-                        shuffled_indices, proposal_candidates_str = self.format_candidates(proposal_candidates)
-
-                        user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
-                                                                                                        "task": task,
-                                                                                                        "plan": self.unified_step['best_plan'],
-                                                                                                        "proposal_candidates_str": proposal_candidates_str,
-                                                                                                        "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
+                        start_seq = self.open_step_tag + "<evaluation>"
+                        assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
                         
-                        messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
+                        plan_votes: list[str] = []
+                        plan_index_maps: list[list[int]] = []
 
-                        proposal_votes.append(llm_turns(client=self.client,
+                        for _ in range(VOTER_COUNT):
+                            self.check_interrupt()
+
+                            shuffled_indices, plan_candidates_str = self.format_candidates(plan_candidates)
+
+                            user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
+                                                                                                            "task": self.current_task,
+                                                                                                            "plan_candidates_str": plan_candidates_str,
+                                                                                                            "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
+
+                            messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
+
+                            plan_votes.append(llm_turns(client=self.client,
                                                         prompts={"system": system_prompt,
                                                                 "messages": messages},
                                                         stop_sequences=["</evaluation>"],
                                                         temperature=TEMP,
                                                         n=1)[0])
-                        
-                        proposal_index_maps.append(shuffled_indices)
+                            
+                            plan_index_maps.append(shuffled_indices)
 
-                    self.csm.transition("SumProposeVotes", locals())
+                        self.csm.transition("SumPlanVotes", locals())
 
-                case "SumProposeVotes":
-                    proposal_scores = self.reduce_scores(proposal_candidates,
-                                                         proposal_votes,
-                                                         proposal_index_maps)
+                    case "SumPlanVotes":
+                        plan_scores = self.reduce_scores(plan_candidates,
+                                                        plan_votes,
+                                                        plan_index_maps)
 
-                    self.csm.transition("ChooseProposition", locals())
+                        self.csm.transition("ChoosePlan", locals())
 
-                case "ChooseProposition":
-                    best_proposition = self.choose(proposal_candidates, proposal_scores)
-                    self.unified_step['best_proposition'] = best_proposition
+                    case "ChoosePlan":
+                        best_plan = self.choose(plan_candidates, plan_scores)
+                        self.unified_step['best_plan'] = best_plan
 
-                    self.csm.transition("Exec", locals())
-
-                case "Exec":
-                    fenced_code = self.unified_step['best_proposition']
-                    
-                    parsed_code = extract_language_and_code(fenced_code)
-                    if not parsed_code:
-                        rprint(f"[red][bold]{self.PRINT_PREFIX} code not parsable:\n{fenced_code}[/bold][/red]")
-                        exit(1)
-                    
-                    language, code = parsed_code
-
-                    rprint(f"{self.PRINT_PREFIX} executing code:")
-                    print(code.strip())
-
-                    self.code_executor.write_code_step_file(code, self.step_num)
-
-                    stdout, stderr = self.code_executor.execute_code_step(self.step_num)
-
-                    rprint(f"{self.PRINT_PREFIX} stdout:")
-                    print(stdout, end='')
-                    rprint(f"{self.PRINT_PREFIX} stderr:")
-                    print(stderr, end='')
-
-                    self.unified_step['output'] = stdout
-                    self.unified_step['error'] = stderr
-
-                    self.csm.transition("ExecVote", locals())
-
-                case "PlanErrorFix":
-                    previous_step = self.unified_steps[-1]
-
-                    frmt = {"step_num": str(self.step_num), "task": task, "error": previous_step['error'], "output": previous_step['output']}
-
-                    system_prompt = load_system_prompt(state_path, "TOT_DIR", frmt)      
-                    user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, frmt))
-                    
-                    start_seq = self.open_step_tag + "<plan>"
-                    assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
-
-                    messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
-                                                 
-                    plan_candidates: list[str] = llm_turns(client=self.client,
-                                                           prompts={"system": system_prompt,
-                                                                   "messages": messages},
-                                                           stop_sequences=["</plan>"],
-                                                           temperature=TEMP,
-                                                           n=PLAN_COUNT)
-                    
-                    self.unified_step['plan_candidates'] = plan_candidates
-
-                    if len(self.unified_step['plan_candidates']) != 1:
-                        self.csm.transition("PlanVote", locals())
-                    else:
-                        self.unified_step['best_plan'] = next(iter(self.unified_step['plan_candidates']))
                         self.csm.transition("Propose", locals())
 
-                case "ExecVote":
-                    system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": task})
-                    user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
-                                                                                                    "task": task,
-                                                                                                    "plan": self.unified_step['best_plan'],
-                                                                                                    "implementation": self.unified_step['best_proposition'],
-                                                                                                    "output": self.unified_step['output'],
-                                                                                                    "error": self.unified_step['error']}))
-                    
-                    start_seq = self.open_step_tag + "<evaluation>"
-                    assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
+                    case "Propose":
+                        system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": self.current_task})
 
-                    messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
-                    
-                    exec_votes: list[str] = llm_turns(client=self.client,
-                                                      prompts={"system": system_prompt,
-                                                            "messages": messages},
-                                                      stop_sequences=["</evaluation>"],
-                                                      temperature=TEMP,
-                                                      n=VOTER_COUNT)
-                    
-                    self.unified_step['exec_vote_strs'] = exec_votes
+                        user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
+                                                                                                        "task": self.current_task,
+                                                                                                        "plan": self.unified_step['best_plan'],
+                                                                                                        "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
+                        
+                        start_seq = self.open_step_tag + "<implementation>" + "\n" + "```python"
+                        assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
+                        
+                        messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
-                    self.csm.transition("SumExecVote", locals())
+                        # re-implement set() optimizaiton after verifying it doesn't interfere with shuffling logic
+                        raw_proposals: list[str] = llm_turns(client=self.client,
+                                                            prompts={"system": system_prompt,
+                                                                    "messages": messages},
+                                                            stop_sequences=["```"],
+                                                            temperature=TEMP,
+                                                            n=PROPOSAL_COUNT)
+                            
+                        proposal_candidates = ["```python" + raw_proposal + "```" for raw_proposal in raw_proposals]
+                        
+                        if len(proposal_candidates) != 1:
+                            self.csm.transition("ProposeVote", locals())
+                        else:
+                            self.unified_step['best_proposition'] = next(iter(proposal_candidates))
+                            self.csm.transition("Exec", locals())
 
-                case "SumExecVote":
-                    avg_yes_votes, avg_error_votes = self.reduce_scores_exec(self.unified_step)
+                    # TODO: Parallelize
+                    case "ProposeVote":
+                        system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
+                                                                                "task": self.current_task})
+                        
+                        start_seq = self.open_step_tag + "<evaluation>"
+                        assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
 
-                    self.next_step()
+                        proposal_votes: list[str] = []
+                        proposal_index_maps: list[list[int]] = []
+                        
+                        for _ in range(VOTER_COUNT):
+                            self.check_interrupt()
 
-                    if avg_yes_votes > 0.5:
-                        self.csm.transition("Done", locals())
-                    elif avg_error_votes > 0.5:
-                        self.csm.transition("PlanErrorFix", locals())
-                    else:
-                        self.csm.transition("Plan", locals())
+                            shuffled_indices, proposal_candidates_str = self.format_candidates(proposal_candidates)
 
-        self.code_executor.condense_code_files(task)
-        
-        feedback = self.get_feedback(task, False)
-        self.log_feedback(feedback)
+                            user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
+                                                                                                            "task": self.current_task,
+                                                                                                            "plan": self.unified_step['best_plan'],
+                                                                                                            "proposal_candidates_str": proposal_candidates_str,
+                                                                                                            "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
+                            
+                            messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
-        rprint(f"{self.PRINT_PREFIX} done!")
+                            proposal_votes.append(llm_turns(client=self.client,
+                                                            prompts={"system": system_prompt,
+                                                                    "messages": messages},
+                                                            stop_sequences=["</evaluation>"],
+                                                            temperature=TEMP,
+                                                            n=1)[0])
+                            
+                            proposal_index_maps.append(shuffled_indices)
 
-        return
+                        self.csm.transition("SumProposeVotes", locals())
+
+                    case "SumProposeVotes":
+                        proposal_scores = self.reduce_scores(proposal_candidates,
+                                                            proposal_votes,
+                                                            proposal_index_maps)
+
+                        self.csm.transition("ChooseProposition", locals())
+
+                    case "ChooseProposition":
+                        best_proposition = self.choose(proposal_candidates, proposal_scores)
+                        self.unified_step['best_proposition'] = best_proposition
+
+                        self.csm.transition("Exec", locals())
+
+                    case "Exec":
+                        fenced_code = self.unified_step['best_proposition']
+                        
+                        parsed_code = extract_language_and_code(fenced_code)
+                        if not parsed_code:
+                            rprint(f"[red][bold]{self.PRINT_PREFIX} code not parsable:\n{fenced_code}[/bold][/red]")
+                            exit(1)
+                        
+                        language, code = parsed_code
+
+                        rprint(f"{self.PRINT_PREFIX} executing code:")
+                        print(code.strip())
+
+                        self.code_executor.write_code_step_file(code, self.step_num)
+
+                        stdout, stderr = self.code_executor.execute_code_step(self.step_num)
+
+                        rprint(f"{self.PRINT_PREFIX} stdout:")
+                        print(stdout, end='')
+                        rprint(f"{self.PRINT_PREFIX} stderr:")
+                        print(stderr, end='')
+
+                        self.unified_step['output'] = stdout
+                        self.unified_step['error'] = stderr
+
+                        self.csm.transition("ExecVote", locals())
+
+                    case "PlanErrorFix":
+                        previous_step = self.unified_steps[-1]
+
+                        frmt = {"step_num": str(self.step_num), "task": self.current_task, "error": previous_step['error'], "output": previous_step['output']}
+
+                        system_prompt = load_system_prompt(state_path, "TOT_DIR", frmt)      
+                        user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, frmt))
+                        
+                        start_seq = self.open_step_tag + "<plan>"
+                        assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
+
+                        messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
+                                                    
+                        plan_candidates: list[str] = llm_turns(client=self.client,
+                                                            prompts={"system": system_prompt,
+                                                                    "messages": messages},
+                                                            stop_sequences=["</plan>"],
+                                                            temperature=TEMP,
+                                                            n=PLAN_COUNT)
+                        
+                        self.unified_step['plan_candidates'] = plan_candidates
+
+                        if len(self.unified_step['plan_candidates']) != 1:
+                            self.csm.transition("PlanVote", locals())
+                        else:
+                            self.unified_step['best_plan'] = next(iter(self.unified_step['plan_candidates']))
+                            self.csm.transition("Propose", locals())
+
+                    case "ExecVote":
+                        system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": self.current_task})
+                        user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
+                                                                                                        "task": self.current_task,
+                                                                                                        "plan": self.unified_step['best_plan'],
+                                                                                                        "implementation": self.unified_step['best_proposition'],
+                                                                                                        "output": self.unified_step['output'],
+                                                                                                        "error": self.unified_step['error']}))
+                        
+                        start_seq = self.open_step_tag + "<evaluation>"
+                        assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
+
+                        messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
+                        
+                        exec_votes: list[str] = llm_turns(client=self.client,
+                                                        prompts={"system": system_prompt,
+                                                                "messages": messages},
+                                                        stop_sequences=["</evaluation>"],
+                                                        temperature=TEMP,
+                                                        n=VOTER_COUNT)
+                        
+                        self.unified_step['exec_vote_strs'] = exec_votes
+
+                        self.csm.transition("SumExecVote", locals())
+
+                    case "SumExecVote":
+                        avg_yes_votes, avg_error_votes = self.reduce_scores_exec(self.unified_step)
+
+                        self.next_step()
+
+                        if avg_yes_votes > 0.5:
+                            self.csm.transition("Done", locals())
+                        elif avg_error_votes > 0.5:
+                            self.csm.transition("PlanErrorFix", locals())
+                        else:
+                            self.csm.transition("Plan", locals())
+
+        except KeyboardInterrupt as e:
+            rprint(f"{self.PRINT_PREFIX}[yellow][bold] Escape key pressed. Stopping the agent[/bold][/yellow]")
+
+        finally:
+            self.finalize_task()
+
+    def finalize_task(self):
+        if self.current_task:
+            self.code_executor.condense_code_files(self.current_task)
+            
+            feedback = self.get_feedback()
+            self.log_feedback(feedback)
+
+            self.current_task = None
+
+            rprint(f"{self.PRINT_PREFIX} done!")
+        else:
+            rprint(f"[red][bold]{self.PRINT_PREFIX} Fatal: no task to finalize! Was run() invoked without assigning a task?[/bold][/red]")
+            exit(1)
     
     def next_step(self) -> None:
         unified_user_str, unified_assistant_str = self.step2str()
@@ -388,10 +423,10 @@ class ToT(Agent):
             logfile.write("</human_feedback>\n")
 
     # TODO: Summarize steps for easy human evaluation and pretty print the task
-    def get_feedback(self, task: str, cutoff: bool) -> FeedbackDict:
-        feedback_intro = f"\nThe task:\n{task}\n"
+    def get_feedback(self) -> FeedbackDict:
+        feedback_intro = f"\nThe task:\n{self.current_task}\n"
         
-        if not cutoff:
+        if not self.interrupted:
             feedback_intro += "is believed to be complete according to your specifications, however this determination may have been in error."
         else:
             feedback_intro += "was interrupted and will be classified as a failure."
@@ -403,8 +438,8 @@ By sharing your insights, you're directly shaping the future of open conversatio
 """
         rprint(feedback_intro)
         
-        if not cutoff:
-            success_prompt = "Was the task completed correctly, even if it took a while or involved self-correcting errors?"
+        if not self.interrupted:
+            success_prompt = "Was the task completed correctly, even if it took a while or involved self-correcting errors? > "
             success = get_yes_no_input(success_prompt)
         else:
             success = False
@@ -415,9 +450,12 @@ By sharing your insights, you're directly shaping the future of open conversatio
             details_prompt = "How would you characterize this failure? Please be as specific as possible to help us be more helpful to you in the future."
 
         
-        rprint(details_prompt, end=" ")
+        rprint(details_prompt, end=" > ")
 
         details = input()
+
+        if self.interrupted:
+            details = remove_escape_key(details)
 
         feedback: FeedbackDict = {
             "success": success,

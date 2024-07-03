@@ -28,7 +28,7 @@ class ConversationState:
         self.name = name
 
         self.system = system
-        self.messages = messages
+        self.messages: list = messages
         self.frmt = frmt
 
         self.formatted_system = None
@@ -74,7 +74,7 @@ class ConversationState:
             else:
                 return self.name
         else:
-            print(f"[red][bold] {self.PRINT_PREFIX} name not assigned[/bold][/red]")
+            print(f"[red][bold]{self.PRINT_PREFIX} name not assigned[/bold][/red]")
             exit(1)
         
     def on_enter(self, csm: ConversationStateMachine, locals):
@@ -91,7 +91,7 @@ class ConversationState:
         if callback_class:
             self.callback: Optional[StateCallback] = callback_class(self.PRINT_PREFIX)
         else:
-            print(f"[red bold]{self.PRINT_PREFIX} no callback found for state {self.get_hpath()}[/red bold]")
+            print(f"[red][bold]{self.PRINT_PREFIX} no callback found for state {self.get_hpath()}[/bold][/red]")
             self.callback: Optional[StateCallback] = None
 
 class ConversationStateMachine:
@@ -113,22 +113,20 @@ class ConversationStateMachine:
         self.visualize(owner_class_name)
         self.print_current_state()
 
-    def transition(self, trigger: str, locals) -> Optional[ConversationState]:
+    def transition(self, trigger: str, locals) -> ConversationState:
         if trigger and trigger in self.current_state.transitions:
-            # call exit callback
             self.current_state.on_exit(self, locals)
-            # update state history
+
             self.state_history.append(deepcopy(self.current_state))
-            # update csm's current state
+
             self.current_state = self.current_state.transitions[trigger]
-            # call enter callback
+
             self.current_state.on_enter(self, locals)
-            # return next state
+
             return self.current_state
         else:
             print(f"[red][bold]{self.PRINT_PREFIX} invalid trigger '{trigger}' for state {self.current_state.get_hpath()}[/bold][/red]")
             sys.exit(1)
-            return None
 
     def initialize_conversation_states(self, state_data):
         def create_state(state_data, parent=None):
@@ -147,7 +145,7 @@ class ConversationStateMachine:
         self.root_state = create_state(state_data)
 
     def find_state_by_path(self, path: str) -> Optional[ConversationState]:
-            return self.state_map.get(path)
+        return self.state_map.get(path)
     
     def initialize_transitions(self, transition_data: dict) -> None:
         self.transition_data = transition_data
