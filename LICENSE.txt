@@ -1,4 +1,4 @@
-Jarvis - Proprietary Software License
+APEX - Proprietary Software License
 Copyright (c) 2024 Rodman Myers. All Rights Reserved.
 
 This software and associated documentation files (the "Software") may not be used, 

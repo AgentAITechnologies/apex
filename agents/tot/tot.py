@@ -212,11 +212,11 @@ class ToT(Agent):
 
                         # re-implement set() optimizaiton after verifying it doesn't interfere with shuffling logic
                         raw_proposals: list[str] = llm_turns(client=self.client,
-                                                            prompts={"system": system_prompt,
-                                                                    "messages": messages},
-                                                            stop_sequences=["```"],
-                                                            temperature=TEMP,
-                                                            n=PROPOSAL_COUNT)
+                                                             prompts={"system": system_prompt,
+                                                                      "messages": messages},
+                                                             stop_sequences=["```"],
+                                                             temperature=TEMP,
+                                                             n=PROPOSAL_COUNT)
                             
                         proposal_candidates = ["```python" + raw_proposal + "```" for raw_proposal in raw_proposals]
                         
@@ -229,7 +229,7 @@ class ToT(Agent):
                     # TODO: Parallelize
                     case "ProposeVote":
                         system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
-                                                                                "task": self.current_task})
+                                                                                   "task": self.current_task})
                         
                         start_seq = self.open_step_tag + "<evaluation>"
                         assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
@@ -344,11 +344,11 @@ class ToT(Agent):
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
                         
                         exec_votes: list[str] = llm_turns(client=self.client,
-                                                        prompts={"system": system_prompt,
-                                                                "messages": messages},
-                                                        stop_sequences=["</evaluation>"],
-                                                        temperature=TEMP,
-                                                        n=VOTER_COUNT)
+                                                          prompts={"system": system_prompt,
+                                                                   "messages": messages},
+                                                          stop_sequences=["</evaluation>"],
+                                                          temperature=TEMP,
+                                                          n=VOTER_COUNT)
                         
                         self.unified_step['exec_vote_strs'] = exec_votes
 
@@ -372,7 +372,7 @@ class ToT(Agent):
         finally:
             self.finalize_task()
 
-    def finalize_task(self):
+    def finalize_task(self) -> None:
         if self.current_task:
             self.code_executor.condense_code_files(self.current_task)
             
