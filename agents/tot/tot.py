@@ -1,5 +1,6 @@
 import os
 import json
+import platform
 import random
 from typing import Optional
 
@@ -17,11 +18,15 @@ from agents.prompt_management import load_system_prompt, load_user_prompt, get_m
 
 from agents.memory import Memory
 
+from remote.experience import stage_experience
+from utils.context import get_platform_details
+from utils.custom_exceptions import ExecError
 from utils.enums import Role
 from utils.custom_types import FeedbackDict
-from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, remove_escape_key
+from utils.parsing import dict2xml, extract_and_sort_steps, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, remove_escape_key
 from utils.llm import llm_turns
 from utils.files import create_incrementing_directory
+from utils.constants import CLIENT_VERSION, LOCAL_LOGS
 
 from anthropic import Anthropic
 
@@ -53,14 +58,17 @@ class ToT(Agent):
 
         tot_dir, input_dir, output_dir = os.environ.get("TOT_DIR"), os.environ.get("INPUT_DIR"), os.environ.get("OUTPUT_DIR")
         if tot_dir is None:
-            print(f"[red][bold]{self.PRINT_PREFIX} TOT_DIR environment variable not set (check .env)[/bold][/red]")
-            exit(1)
+            error_message = f"{self.PRINT_PREFIX} TOT_DIR environment variable not set (check .env)"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise KeyError(error_message)
         if input_dir is None:
-            print(f"[red][bold]{self.PRINT_PREFIX} INPUT_DIR environment variable not set (check .env)[/bold][/red]")
-            exit(1)
+            error_message = f"{self.PRINT_PREFIX} INPUT_DIR environment variable not set (check .env)"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise KeyError(error_message)
         if output_dir is None:
-            print(f"[red][bold]{self.PRINT_PREFIX} OUTPUT_DIR environment variable not set (check .env)[/bold][/red]")
-            exit(1)
+            error_message = f"{self.PRINT_PREFIX} OUTPUT_DIR environment variable not set (check .env)"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise KeyError(error_message)
 
         self.output_dir = os.path.join(tot_dir, output_dir)
 
@@ -91,6 +99,7 @@ class ToT(Agent):
             raise KeyboardInterrupt
 
     def run(self) -> None:
+        self.trace = ""
         self.interrupted = False
 
         try:
@@ -108,6 +117,10 @@ class ToT(Agent):
             if self.csm.current_state.name == "Done":
                 self.csm.transition("Plan", locals())
 
+            # TODO: Use code from prior tasks assigned to this agent
+            # A "here's what you've done so far" prompt section
+            # (execution state should already be preserved in execution_context dict)
+
             self.step_num = 1
             self.open_step_tag = f"<step_{self.step_num}>"
             self.close_step_tag = f"</step_{self.step_num}>"
@@ -123,7 +136,7 @@ class ToT(Agent):
                     
                     case "Plan":
                         system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
-                                                                                "task": self.current_task})
+                                                                                   "task": self.current_task})
                         
                         user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                         "task": self.current_task,
@@ -137,7 +150,7 @@ class ToT(Agent):
                         # re-implement set() optimizaiton after verifying it doesn't interfere with shuffling logic                     
                         plan_candidates: list[str] = llm_turns(client=self.client,
                                                             prompts={"system": system_prompt,
-                                                            "messages": messages},
+                                                                     "messages": messages},
                                                             stop_sequences=["</plan>"],
                                                             temperature=TEMP,
                                                             n=PLAN_COUNT)
@@ -153,7 +166,7 @@ class ToT(Agent):
                     # TODO: Parallelize
                     case "PlanVote":
                         system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
-                                                                                "task": self.current_task})
+                                                                                   "task": self.current_task})
                         
                         start_seq = self.open_step_tag + "<evaluation>"
                         assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
@@ -279,8 +292,9 @@ class ToT(Agent):
                         
                         parsed_code = extract_language_and_code(fenced_code)
                         if not parsed_code:
-                            rprint(f"[red][bold]{self.PRINT_PREFIX} code not parsable:\n{fenced_code}[/bold][/red]")
-                            exit(1)
+                            error_message = f"{self.PRINT_PREFIX} code not parsable:\n{fenced_code}"
+                            rprint(f"[red][bold]{error_message}[/bold][/red]")
+                            raise SyntaxError(error_message)
                         
                         language, code = parsed_code
 
@@ -376,19 +390,24 @@ class ToT(Agent):
         if self.current_task:
             self.code_executor.condense_code_files(self.current_task)
             
-            feedback = self.get_feedback()
-            self.log_feedback(feedback)
+            PROVIDE_FEEDBACK = os.environ.get("PROVIDE_FEEDBACK") == "True"
+            if PROVIDE_FEEDBACK:
+                feedback = self.get_feedback()
+                self.log_feedback(feedback)
+            else:
+                rprint(f"[yellow][bold]{self.PRINT_PREFIX} PROVIDE_FEEDBACK not set to \"True\" in .env - not collecting performance feedback[/bold][/yellow]")
 
+            self.trace = ""
             self.current_task = None
 
             rprint(f"{self.PRINT_PREFIX} done!")
         else:
-            rprint(f"[red][bold]{self.PRINT_PREFIX} Fatal: no task to finalize! Was run() invoked without assigning a task?[/bold][/red]")
-            exit(1)
+            error_message = f"{self.PRINT_PREFIX} Fatal: no task to finalize! Was run() invoked without assigning a task?"
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
+            raise ExecError(error_message)   
     
     def next_step(self) -> None:
         unified_user_str, unified_assistant_str = self.step2str()
-        
         self.log_step(unified_user_str, unified_assistant_str)
 
         unified_user_msg = get_msg(Role.USER, unified_user_str)
@@ -404,52 +423,101 @@ class ToT(Agent):
         self.close_step_tag = f"</step_{self.step_num}>"
 
     def log_step(self, unified_user_str, unified_assistant_str) -> None:
+        step_trace = ""
+
+        step_trace += "\n"
+        step_trace += self.open_step_tag + "\n"
+        step_trace += "<user>"
+        step_trace += unified_user_str + "</user>\n\n"
+        step_trace += "<assistant>\n"
+        step_trace += unified_assistant_str + "\n</assistant>\n"
+        step_trace += self.close_step_tag + "\n"
+
         with open(os.path.join(self.log_dir, RESULT_FILENAME), 'a') as logfile:
-            logfile.write("\n")
+            logfile.write(step_trace)
 
-            logfile.write("<user>")
-            logfile.write(unified_user_str + "</user>\n\n")
-
-            logfile.write("<assistant>\n")
-            logfile.write(unified_assistant_str + "\n</assistant>\n")
+        self.trace += step_trace
     
     def log_feedback(self, feedback: FeedbackDict) -> None:
-        with open(os.path.join(self.log_dir, RESULT_FILENAME), 'a') as logfile:
+        LOGFILE_PATH = os.path.join(self.log_dir, RESULT_FILENAME)
+
+        with open(LOGFILE_PATH, 'a') as logfile:
             logfile.write("\n")
 
             logfile.write("<human_feedback>\n")
             logfile.write(f"<success>{feedback['success']}</success>\n")
             logfile.write(f"<details>{feedback['details']}</details>\n")
+            logfile.write(f"<elaboration>{feedback['elaboration']}</elaboration>\n")
             logfile.write("</human_feedback>\n")
+
+        PROVIDE_FEEDBACK = os.environ.get("PROVIDE_FEEDBACK") == "True"
+        if PROVIDE_FEEDBACK:
+            with open(LOGFILE_PATH, 'r') as logfile:
+                logfile_text = logfile.read()
+
+            raw_log: dict = xmlstr2dict(logfile_text, self.client)
+
+            if "details" in raw_log:
+                details_str = f"<details>{raw_log['details']}</details>"
+            else:
+                details_str = ""
+
+            log = {
+                "agent_name": self.name,
+                "task": f"<task><description>{raw_log['task']}</description>{details_str}</task>",
+                "trace": self.trace,
+                "success": feedback['success'],
+                "feedback": feedback['details'],
+                "elaboration": feedback['elaboration'],
+                "client_version": CLIENT_VERSION,
+                "platform_details": get_platform_details(),
+                "os_family": platform.system()
+            }
+
+            rprint(log)
+
+            response = stage_experience(log)
+
+            if response:
+                rprint(f"{self.PRINT_PREFIX} response: {response.text}")
+            else:
+                rprint(f"[red][bold]{self.PRINT_PREFIX} no response from experience submission![/bold][/red]")
+        else:
+            rprint(f"[yellow][bold]{self.PRINT_PREFIX} PROVIDE_FEEDBACK not set to \"True\" in .env - not sending feedback[/bold][/yellow]")
+
+        if not LOCAL_LOGS:
+            rprint(f"[yellow][bold]{self.PRINT_PREFIX} LOCAL_LOGS not set to \"True\" in .env - removing local log cache[/bold][/yellow]")
+            os.remove(LOGFILE_PATH)
 
     # TODO: Summarize steps for easy human evaluation and pretty print the task
     def get_feedback(self) -> FeedbackDict:
         feedback_intro = f"\nThe task:\n{self.current_task}\n"
         
         if not self.interrupted:
-            feedback_intro += "is believed to be complete according to your specifications, however this determination may have been in error."
+            feedback_intro += "is believed to be complete according to your specifications, however this determination may have been in error.\n"
         else:
-            feedback_intro += "was interrupted and will be classified as a failure."
+            feedback_intro += "was interrupted and will be classified as a failure.\n"
 
         feedback_intro += """
-[deep_sky_blue1][bold]Your feedback is instrumental in evolving this virtual assistant.[/bold]
-By sharing your insights, you're directly shaping the future of open conversational AI technology.
+[deep_sky_blue1][bold]Thank you again for providing feedback about the proformance of this program.
+Your contributions make this tool more effective for everyone.
 [italic]If you do not wish to be prompted for feedback in the future, simply disable this feature in your .env file.[/italic][/deep_sky_blue1]
 """
         rprint(feedback_intro)
         
+        # TODO: implement one-off bypass ('c' for cancel)
         if not self.interrupted:
-            success_prompt = "Was the task completed correctly, even if it took a while or involved self-correcting errors? > "
+            success_prompt = "Was the task completed correctly, even if it took a while or involved self-correcting errors?"
             success = get_yes_no_input(success_prompt)
         else:
             success = False
 
         if success:
-            details_prompt = "How could future completions of this task be better?\n(e.g., more efficient, having fewer side effects, or being more closely aligned with your intentions)?"
+            details_prompt = """How could future completions of this task be better?\n(e.g., more efficient, having fewer side effects, or being more closely aligned with your intentions)?
+If you believe it was optimal, please indicate this."""
         else:
             details_prompt = "How would you characterize this failure? Please be as specific as possible to help us be more helpful to you in the future."
 
-        
         rprint(details_prompt, end=" > ")
 
         details = input()
@@ -459,10 +527,60 @@ By sharing your insights, you're directly shaping the future of open conversatio
 
         feedback: FeedbackDict = {
             "success": success,
-            "details": details
+            "details": details,
         }
 
+        feedback['elaboration'] = self.clarify_feedback(feedback)
+
         return feedback
+    
+    # TODO: return the LLM's self-commentary
+    def clarify_feedback(self, feedback: dict) -> Optional[str]:
+        if self.current_task:
+            with open(os.path.join(self.log_dir, RESULT_FILENAME), 'r') as logfile:
+                system_prompt = load_system_prompt("ClarifyFeedback", "TOT_DIR", {'task': self.current_task,
+                                                                                  'logfile': logfile.read()})
+        else:
+            error_message = "No task to clarify feedback for!"
+            rprint(f"[red][bold]{self.PRINT_PREFIX} {error_message}[/bold][/red]")
+            raise ValueError(error_message)
+        
+        user_prompt = get_msg(Role.USER, load_user_prompt("ClarifyFeedback", "TOT_DIR", None, {'success': feedback['success'],
+                                                                                               'details': feedback['details']}))
+        
+        assistant_prompt = get_msg(Role.ASSISTANT, "<reflection>")
+        
+        messages = [user_prompt, assistant_prompt]
+        
+        llm_response = llm_turns(self.client, {'system': system_prompt, 'messages': messages}, ["</reflection>"], TEMP, 1)[0]
+
+        correct_interpretation = get_yes_no_input(f"""Before your feedback is submitted, let's make sure the LLM understands your intentions.
+Here's how it interprets your feedback on the last run:
+{llm_response}
+[bold]Is this an accurate reflection of the meaning you intended?[/bold]""")
+        
+        if correct_interpretation:
+            return llm_response
+        else:
+            while not correct_interpretation:
+                messages[-1] = get_msg(Role.ASSISTANT, llm_response)
+
+                correction = input("What was incorrect or missing? (type 'c' to exit this loop) > ")
+                if correction.lower() == "c":
+                    return None
+
+                messages.append(get_msg(Role.USER, "<correction>" + correction + "</correction>"))
+                messages.append(get_msg(Role.ASSISTANT, """Here's a revised interpretation of your feedback based on your correction:
+<revised_reflection>"""))
+                
+                llm_response = llm_turns(self.client, {'system': system_prompt, 'messages': messages}, ["</revised_reflection>"], TEMP, 1)[0]
+
+                correct_interpretation = get_yes_no_input(f"""Here's a revised interpetation:
+{llm_response}
+[bold]Is this an accurate reflection of the meaning you intended?[/bold]""")
+            
+            return llm_response
+
 
     def step2str(self) -> tuple[str, str]:
         if self.step_num > 1:
@@ -472,8 +590,7 @@ By sharing your insights, you're directly shaping the future of open conversatio
         
         unified_user_str = f"Plan and implement step {self.step_num}" + suffix
 
-        unified_assistant_str = f"""{self.open_step_tag}
-<plan>{self.unified_step['best_plan']}</plan>
+        unified_assistant_str = f"""<plan>{self.unified_step['best_plan']}</plan>
 <implementation>
 {self.unified_step['best_proposition']}
 </implementation>
@@ -482,8 +599,7 @@ By sharing your insights, you're directly shaping the future of open conversatio
 </stdout>
 <stderr>
 {self.unified_step['error']}
-</stderr>
-{self.close_step_tag}"""
+</stderr>"""
 
         return unified_user_str, unified_assistant_str
 

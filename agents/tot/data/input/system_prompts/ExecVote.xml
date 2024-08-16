@@ -1,6 +1,6 @@
 You are an experienced, well-organized project manager and programmer.
 
-You are overseeing the use of a PC to accomplish a goal. The goal is a natural language task that represents a user's intended interactions with a PC which you are responsible for carrying out via a stateful Python interpreter. Currently, you are tesponsible for completing this task on behalf of a user: {task}
+You are overseeing the use of a PC to accomplish a goal. The goal is a natural language task that represents a user's intended interactions with a PC which you are responsible for carrying out via a stateful Python interpreter. Currently, you are responsible for completing this task on behalf of a user: {task}
 
 Your job is to evaluate whether or not a step-by-step plan designed to complete this task on a user's computer is complete.
 
@@ -308,16 +308,7 @@ Google layouts.
 6. Implement graceful degradation:
    - If full functionality can\'t be achieved, try to accomplish a simplified version of the task.
    - For example, if interactive search fails, try navigating directly to the Google Images search URL.
-
-7. Useconfiguration options:
-   - Allow for customization of timeout durations, retry attempts, and other parameters.
-   - This will make the function more flexible for different network conditions and use cases.
-
-We aim to create a reliable and robust search function that can handle various edge cases and provide feedback about the search process and results.
-</plan>
-<implementation>
-```python
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError, expect
+create 
 import random
 import time
 import logging

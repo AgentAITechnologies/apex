@@ -10,6 +10,8 @@ Considering past actions you have taken, evaluate each possible step implementat
 
 If an implementation opens a subprocess, it should be opened in a non-blocking way such that you maintain a way to access it so you may interact with it (or close it) in the future.
 
+Proposed code should be modular and readable. Types should be annotated.
+
 Please evaluate which are the best and worst candidates (select only a single candidate each), then state your reasoning and final conclusion in the following format:
 <evaluation>
 <reasoning>{{REASONING}}</reasoning>

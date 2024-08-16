@@ -1,6 +1,6 @@
 import sys
 import os
-from xml.etree.ElementTree import Element, tostring
+from xml.etree.ElementTree import tostring
 
 import pytest
 

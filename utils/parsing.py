@@ -63,8 +63,9 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
 
             return xmlstr2dict(fixed_xml, client, depth + 1)
         else:
-            print(f"{PRINT_PREFIX} [red][bold]Error parsing XML, and fix attempt limit of {depth+1} reached:\n{xml_string}[/bold][/red]")
-            exit(1)
+            error_message = f"Error parsing XML, and fix attempt limit of {depth+1} reached:\n{xml_string}"
+            print(f"{PRINT_PREFIX} [red][bold]{error_message}[/bold][/red]")
+            raise RecursionError(error_message)
     
     def parse_element(element: ET.Element) -> Optional[dict] | Optional[str]:
         if len(element) == 0:
@@ -88,8 +89,9 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
     if isinstance(result, dict):
         return result
     else:
-        print(f"[red][bold]{PRINT_PREFIX} root element evaluated to {type(result)}, expected dict")
-        exit(1)
+        error_message = f"{PRINT_PREFIX} root element evaluated to {type(result)}, expected dict"
+        print(f"[red][bold]{error_message}[/bold][/red]")
+        raise TypeError(error_message)
 
 def dict2xml(d: NestedStrDict, tag: str="root") -> Element:
     """
@@ -131,6 +133,21 @@ def extract_language_and_code(markdown_string: str) -> Optional[tuple[str, str]]
     else:
         return None
     
+def extract_and_sort_steps(data):
+    # Regular expression to match the pattern and extract the number
+    pattern = r'<step_(\d+)>'
+    
+    # Filter and sort the keys
+    step_items = sorted(
+        [(k, v) for k, v in data.items() if (match := re.match(pattern, k))],
+        key=lambda x: int(re.match(pattern, x[0]).group(1))
+    )
+    
+    # Create the result list
+    result = [v for _, v in step_items]
+    
+    return result
+    
 def find_missing_format_items(string):
     # Regular expression pattern to match format items not surrounded by extra curly braces
     pattern = r'(?<!\{)\{(\w+)\}(?!\})'
@@ -155,13 +172,18 @@ def extract_steps(xml_string):
     results = [f"<step_{step}>{text.strip()}</step_{step}>" for step, text in matches]
     return results
 
-def get_yes_no_input(prompt: str, rich_open: str = "", rich_close: str = "") -> bool:
+def get_yes_no_input(prompt: Optional[str] = None, rich_open: str = "", rich_close: str = "") -> bool:
     if bool(rich_open) ^ bool(rich_close):
-        print(f"[red][bold]{PRINT_PREFIX} Only one parameter passed for rich (needs eith both rich_open and rich_close, or neither)[/bold][/red]")
-        exit(1)
+        error_message = f"{PRINT_PREFIX} Only one parameter passed for rich (needs either both rich_open and rich_close, or neither)"
+        print(f"[red][bold]{error_message}[/bold][/red]")
+        raise ValueError(error_message)
 
     while True:
-        user_input = input(prompt + " (y/n): ").lower().strip()
+        if prompt:
+            print(rich_open + prompt + rich_close, end=' ')
+
+        user_input = input("(y/n) > ").lower().strip()
+
         if user_input in ['y', 'yes']:
             return True
         elif user_input in ['n', 'no']:

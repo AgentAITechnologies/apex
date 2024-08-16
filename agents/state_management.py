@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import sys
 
 from copy import deepcopy
 from typing import Optional
@@ -10,6 +9,8 @@ import dotenv
 
 import pygraphviz as pgv
 from rich import print
+
+from utils.custom_exceptions import ConversationNodeError, ConversationEdgeError
 
 from agents.ui.callbacks import *
 from agents.tot.callbacks import *
@@ -74,8 +75,9 @@ class ConversationState:
             else:
                 return self.name
         else:
-            print(f"[red][bold]{self.PRINT_PREFIX} name not assigned[/bold][/red]")
-            exit(1)
+            error_message = f"{self.PRINT_PREFIX} self.name not assigned"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise ConversationNodeError(error_message)
         
     def on_enter(self, csm: ConversationStateMachine, locals):
         if self.callback:
@@ -125,8 +127,9 @@ class ConversationStateMachine:
 
             return self.current_state
         else:
-            print(f"[red][bold]{self.PRINT_PREFIX} invalid trigger '{trigger}' for state {self.current_state.get_hpath()}[/bold][/red]")
-            sys.exit(1)
+            error_message = f"{self.PRINT_PREFIX} invalid trigger '{trigger}' for state {self.current_state.get_hpath()}"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise ConversationEdgeError(error_message)
 
     def initialize_conversation_states(self, state_data):
         def create_state(state_data, parent=None):
@@ -224,8 +227,9 @@ class ConversationStateMachine:
                 
             graph.draw(os.path.join(output_dir, f'state_diagram_{filename}.png'))
         else:
-            print(f"[red][bold]{self.PRINT_PREFIX} invalid OUTPUT_DIR not set[/bold][/red]")
-            exit(1)
+            error_message = f"{self.PRINT_PREFIX} OUTPUT_DIR not set"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise KeyError(error_message)
      
     def print_current_state(self):
         print(f"{self.PRINT_PREFIX} self.current_state: [yellow]{self.current_state}[/yellow]")

@@ -37,11 +37,28 @@ def load_user_prompt(state_path: str, environ_path_key: str, dynamic_metaprompt:
             return "<input>" + user_input + "</input>"
 
     else:
-        user_prompt_dir = os.path.join(os.environ.get(environ_path_key, "NO_PATH_SET"), os.environ.get("INPUT_DIR", "NO_PATH_SET"), os.environ.get("USR_PRMPT_DIR", "NO_PATH_SET"))
+        environ_path = os.environ.get(environ_path_key)
+        if not environ_path:
+            error_message = f"{PRINT_PREFIX} {environ_path_key} not set"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise KeyError(error_message)
+        INPUT_DIR = os.environ.get("INPUT_DIR")
+        if not INPUT_DIR:
+            error_message = f"{PRINT_PREFIX} INPUT_DIR not set"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise KeyError(error_message)
+        USR_PRMPT_DIR = os.environ.get("USR_PRMPT_DIR")
+        if not USR_PRMPT_DIR:
+            error_message = f"{PRINT_PREFIX} USR_PRMPT_DIR not set"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise KeyError(error_message)
+            
+        user_prompt_dir = os.path.join(environ_path, INPUT_DIR, USR_PRMPT_DIR)
         
         if not os.path.exists(os.path.join(user_prompt_dir, state_path+FILE_EXT)):
-            print(f"[red][bold]{PRINT_PREFIX} user prompt file does not exist, and no prompt was provided as arg: {state_path+FILE_EXT}[/red][/bold]")
-            exit(1)
+            error_message = f"{PRINT_PREFIX} user prompt file does not exist, and no prompt was provided as arg: {state_path+FILE_EXT}"
+            print(f"[red][bold]{error_message}[/red][/bold]")
+            raise FileNotFoundError(error_message)
 
         else:
             with open(os.path.join(user_prompt_dir, state_path+FILE_EXT), 'r') as f:
@@ -53,7 +70,25 @@ def load_user_prompt(state_path: str, environ_path_key: str, dynamic_metaprompt:
             return user_prompt
 
 def load_system_prompt(state_path: str, environ_path_key: str, frmt: dict[str, str]) -> str:
-    sys_prompt_dir = os.path.join(os.environ.get(environ_path_key, "NO_PATH_SET"), os.environ.get("INPUT_DIR", "NO_PATH_SET"), os.environ.get("SYS_PRMPT_DIR", "NO_PATH_SET"))
+    environ_path = os.environ.get(environ_path_key)
+    if not environ_path:
+        error_message = f"{PRINT_PREFIX} {environ_path_key} not set"
+        print(f"[red][bold]{error_message}[/bold][/red]")
+        raise KeyError(error_message)
+
+    INPUT_DIR = os.environ.get("INPUT_DIR")
+    if not INPUT_DIR:
+        error_message = f"{PRINT_PREFIX} INPUT_DIR not set"
+        print(f"[red][bold]{error_message}[/bold][/red]")
+        raise KeyError(error_message)
+
+    SYS_PRMPT_DIR = os.environ.get("SYS_PRMPT_DIR")
+    if not SYS_PRMPT_DIR:
+        error_message = f"{PRINT_PREFIX} SYS_PRMPT_DIR not set"
+        print(f"[red][bold]{error_message}[/bold][/red]")
+        raise KeyError(error_message)
+
+    sys_prompt_dir = os.path.join(environ_path, INPUT_DIR, SYS_PRMPT_DIR)
 
     with open(os.path.join(sys_prompt_dir, state_path+FILE_EXT), 'r') as f:
         sys_prompt = f.read()

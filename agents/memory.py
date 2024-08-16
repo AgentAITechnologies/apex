@@ -10,6 +10,7 @@ from anthropic.types import TextBlock
 from agents.prompt_management import load_system_prompt, load_user_prompt, load_assistant_prefill, get_msg
 
 from utils.custom_types import Message
+from utils.custom_exceptions import PromptError
 from utils.enums import Role
 from utils.parsing import files2dict
 
@@ -39,16 +40,19 @@ class Memory:
                 if global_frmt_dir:
                     self.global_frmt: dict = files2dict(os.path.join(environ_path, input_path, global_frmt_dir), file_ext)
                 else:
-                    print(f"[red][bold]{self.PRINT_PREFIX} GLOBAL_FRMT_DIR not set[/bold][/red]")
-                    exit(1)
+                    error_message = f"{self.PRINT_PREFIX} GLOBAL_FRMT_DIR not set"
+                    print(f"[red][bold]{error_message}[/bold][/red]")
+                    raise KeyError(error_message)
                 if persistence_dir:
                     self.persistence: dict = files2dict(os.path.join(environ_path, input_path, persistence_dir), file_ext)
                 else:
-                    print(f"[red][bold]{self.PRINT_PREFIX} PERSISTENCE_DIR not set[/bold][/red]")
-                    exit(1)
+                    error_message = f"{self.PRINT_PREFIX} PERSISTENCE_DIR not set"
+                    print(f"[red][bold]{error_message}[/bold][/red]")
+                    raise KeyError(error_message)
             else:
-                print(f"[red][bold]{self.PRINT_PREFIX} invalid environ_path_key or INPUT_DIR not set:\nenviron_path_key: {environ_path_key}\ninput_path:{input_path}[/bold][/red]")
-                exit(1)
+                error_message = f"{self.PRINT_PREFIX} invalid environ_path_key or INPUT_DIR not set:\nenviron_path_key: {environ_path_key}\ninput_path:{input_path}"
+                print(f"[red][bold]{error_message}[/bold][/red]")
+                raise KeyError(error_message)
 
         self.results: dict[int, dict] = {}
     
@@ -74,21 +78,25 @@ class Memory:
         if self.system_prompt:
             return self.system_prompt
         else:
-            print(f"[red][bold]{self.PRINT_PREFIX} unprimed system prompt[/bold][/red]")
-            exit(1)
+            error_message = f"{self.PRINT_PREFIX} unprimed system prompt"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise PromptError(error_message)
     
     def get_messages(self) -> list[Message]:
         if len(self.conversation_history) > 0:
             return self.conversation_history
         else:
-            print(f"[red][bold]{self.PRINT_PREFIX} unprimed conversation history[/bold][/red]")
-            exit(1)
+            error_message = f"{self.PRINT_PREFIX} unprimed conversation history"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise PromptError(error_message)
 
     def store_llm_response(self, result: str) -> None:
         if self.conversation_history[-1]["role"] == Role.ASSISTANT.value:
             self.conversation_history[-1]["content"] = result
         else:
-            print(f"[red][bold]{self.PRINT_PREFIX} Unexpected role at end of conversation: {self.conversation_history[-1]['role']}[/bold][/red]")
+            error_message = f"{self.PRINT_PREFIX} Unexpected role at end of conversation: {self.conversation_history[-1]['role']}"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise PromptError(error_message)
 
     def add_msg(self, msg: Message) -> None:
         self.conversation_history.append(msg)

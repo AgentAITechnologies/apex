@@ -321,6 +321,8 @@ Remember, generality and abstraction are your friend! Don't be afraid to simulat
 
 If you plan to open a subprocess, open it in a non-blocking way, but make sure you maintain a way to access it so you may interact with it (or close it) in the future.
 
+Do NOT plan to include the if __name__ == "__main__" idiom, as the code based on your plan is being executed inline and is NOT __main__.
+
 Be as specific as possible given the knowledge and context you have at hand. Remember, your step descriptions will be used to generate code, so don't be ambiguous, but also don't make assumptions. Do NOT generate the code itself, just plan it out.
 
 Now it is time to plan step {step_num} of the task: {task}

@@ -49,18 +49,21 @@ class AgentManager():
                 if os.path.exists(sessions_dir):
                     shutil.rmtree(sessions_dir)
             else:
-                print(f"[red][bold]{self.PRINT_PREFIX} SESSIONS_DIR environment variable not set (check .env)[/bold][/red]")
-                exit(1)
+                error_message = f"{self.PRINT_PREFIX} SESSIONS_DIR environment variable not set (check .env)"
+                print(f"[red][bold]{error_message}[/bold][/red]")
+                raise KeyError(error_message)
 
             self.agents: list[Agent] = []
 
             agtmgr_dir, input_dir = os.environ.get("AGTMGR_DIR"), os.environ.get("INPUT_DIR")
             if agtmgr_dir is None:
-                print(f"[red][bold]{self.PRINT_PREFIX} AGTMGR_DIR environment variable not set (check .env)[/bold][/red]")
-                exit(1)
+                error_message = f"{self.PRINT_PREFIX} AGTMGR_DIR environment variable not set (check .env)"
+                print(f"[red][bold]{error_message}[/bold][/red]")
+                raise KeyError(error_message)
             if input_dir is None:
-                print(f"[red][bold]{self.PRINT_PREFIX} INPUT_DIR environment variable not set (check .env)[/bold][/red]")
-                exit(1)
+                error_message = f"{self.PRINT_PREFIX} INPUT_DIR environment variable not set (check .env)"
+                print(f"[red][bold]{error_message}[/bold][/red]")
+                raise KeyError(error_message)
 
             with open(os.path.join(agtmgr_dir, input_dir, "states.json")) as file:
                 state_data = json.load(file)
@@ -172,8 +175,9 @@ class AgentManager():
 
             for task in agent.tasks:
                 if not isinstance(task, dict):
-                    print(f"[bold][red]{self.PRINT_PREFIX} task was {type(task)}, expected dict[/red][/bold]")
-                    exit(1)
+                    error_message = f"{self.PRINT_PREFIX} task was {type(task)}, expected dict"
+                    print(f"[bold][red]{error_message}[/red][/bold]")
+                    raise TypeError(error_message)
                     
                 task_xml = dict2xml(task)
                 task_str = xml2xmlstr(task_xml)

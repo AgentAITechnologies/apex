@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 
 import os
-import sys
 import sounddevice as sd
 
 from rich import print
@@ -12,6 +11,9 @@ from agents.agent import Agent
 from agents.memory import Memory
 from agents.agent_manager.agent_manager import AgentManager
 from agents.state_management import ConversationStateMachine
+
+from utils.custom_exceptions import UIError
+from utils.constants import FRIENDLY_COLOR
 
 from utils.parsing import xmlstr2dict
 from utils.tts import tts
@@ -34,13 +36,47 @@ class UI(Agent):
                          description=description,
                          tasks=tasks)
 
-        with open(os.path.join(os.environ.get("UI_DIR", "NO_PATH_SET"), os.environ.get("INPUT_DIR", "NO_PATH_SET"), "states.json")) as file:
-            state_data = json.load(file)
-            print(f"{self.PRINT_PREFIX} loaded state_data")
+        UI_DIR = os.environ.get("UI_DIR")
+        if not UI_DIR:
+            error_message = f"{self.PRINT_PREFIX} UI_DIR not set"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise KeyError(error_message)
 
-        with open(os.path.join(os.environ.get("UI_DIR", "NO_PATH_SET"), os.environ.get("INPUT_DIR", "NO_PATH_SET"), "transitions.json")) as file:
-            transition_data = json.load(file)
+        INPUT_DIR = os.environ.get("INPUT_DIR")
+        if not INPUT_DIR:
+            error_message = f"{self.PRINT_PREFIX} INPUT_DIR not set"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise KeyError(error_message)
+
+        state_file_path = os.path.join(UI_DIR, INPUT_DIR, "states.json")
+
+        try:
+            with open(state_file_path) as file:
+                state_data = json.load(file)
+            print(f"{self.PRINT_PREFIX} loaded state_data")
+        except FileNotFoundError:
+            error_message = f"{self.PRINT_PREFIX} states.json not found at {state_file_path}"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise
+        except json.JSONDecodeError:
+            error_message = f"{self.PRINT_PREFIX} Error decoding JSON in states.json"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise
+
+        transition_file_path = os.path.join(UI_DIR, INPUT_DIR, "transitions.json")
+
+        try:
+            with open(transition_file_path) as file:
+                transition_data = json.load(file)
             print(f"{self.PRINT_PREFIX} loaded transition_data")
+        except FileNotFoundError:
+            error_message = f"{self.PRINT_PREFIX} transitions.json not found at {transition_file_path}"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise
+        except json.JSONDecodeError:
+            error_message = f"{self.PRINT_PREFIX} Error decoding JSON in transitions.json"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise
 
         self.csm = ConversationStateMachine(state_data=state_data, transition_data=transition_data, init_state_path='Start', prefix=self.PRINT_PREFIX, owner_class_name="UI")
 
@@ -51,10 +87,10 @@ class UI(Agent):
         self.parsed_response = None
     
     def run(self):
-        print("[bold][deep_sky_blue1]Welcome to [italic]APEX[/italic][/deep_sky_blue1][/bold]")
+        print(f"[bold][{FRIENDLY_COLOR}]Welcome to [italic]APEX[/italic][/{FRIENDLY_COLOR}][/bold]")
 
         while self.csm.current_state.get_hpath() != "Exit":
-            print(f"{self.PRINT_PREFIX} self.csm.current_state.get_hpath(): {self.csm.current_state.get_hpath()}")
+            print(f"{self.PRINT_PREFIX} At: {self.csm.current_state.get_hpath()}")
                 
             match self.csm.current_state.get_hpath():
 
@@ -95,5 +131,6 @@ class UI(Agent):
                         self.agent_manager.ipc("RouteAction", {"action": action})
                         self.csm.transition("PrintUIMessage", locals)
                     else:
-                        print(f"[red][bold]{self.PRINT_PREFIX} no action to assign[/bold][/red]")
-                        sys.exit(1)
+                        error_message = f"{self.PRINT_PREFIX} no action to assign"
+                        print(f"[red][bold]{error_message}[/bold][/red]")
+                        raise UIError(error_message)

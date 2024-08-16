@@ -1,7 +1,7 @@
 import os
 import io
 import sys
-from typing import Optional, Any, TextIO
+from typing import Any, TextIO
 import dotenv
 import shutil
 
@@ -70,8 +70,9 @@ class CodeExecutor:
             return stdout_capture.getvalue(), stderr_capture.getvalue()
 
         else:
-            print(f"[red][bold]{self.PRINT_PREFIX} File {file_path} for step {step_num} execution not found.[/bold][/red]")
-            exit(1)
+            error_message = f"{self.PRINT_PREFIX} File {file_path} for step {step_num} execution not found."
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise FileNotFoundError(error_message)
 
     def execute_code_steps(self):
         step_num = 1
@@ -80,9 +81,10 @@ class CodeExecutor:
             try:
                 yield self.execute_code_step(step_num)
                 step_num += 1
-            except FileNotFoundError:
-                print(f"[red][bold]{self.PRINT_PREFIX} Code for step {step_num} unable to be written to disk[/bold][/red]")
-                break
+            except FileNotFoundError as e:
+                error_message = f"{self.PRINT_PREFIX} Code for step {step_num} unable to be written to disk"
+                print(f"[red][bold]{error_message}[/bold][/red]")
+                raise FileNotFoundError(error_message)
       
     def condense_code_files(self, task: str) -> None:
         with open(os.path.join(self.CODE_DIR, self.PRIOR_CODE_FILENAME), "a") as exec_result_file:

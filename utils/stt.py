@@ -6,7 +6,7 @@ from typing_extensions import Self
 import os
 import sys
 import numpy as np
-from numpy import float32, float64, ndarray, concatenate
+from numpy import float64, ndarray, concatenate
 import sounddevice as sd
 from sounddevice import DeviceList
 import soundfile as sf
@@ -54,8 +54,9 @@ class STT():
                                     self.audio_in_device = devices.index(device)
 
                         else:
-                            print(f"[red][bold]{self.PRINT_PREFIX} AUDIO_IN_DEVICE not numeric[/bold][/red]")
-                            exit(1)
+                            error_message = f"{self.PRINT_PREFIX} AUDIO_IN_DEVICE not numeric"
+                            print(f"[red][bold]{error_message}[/bold][/red]")
+                            raise ValueError(error_message)
                         
                         device = sd.query_devices(self.audio_in_device)
                         if isinstance(device, dict):
@@ -63,8 +64,9 @@ class STT():
                             self.fps = int(device['default_samplerate'])
                             
                     else:
-                        print(f"[bold][red]{self.PRINT_PREFIX} AUDIO_IN_DEVICE is not set - this is required on Linux[/red][/bold]")
-                        exit(1)
+                        error_message = f"{self.PRINT_PREFIX} AUDIO_IN_DEVICE is not set - this is required on Linux"
+                        print(f"[bold][red]{error_message}[/red][/bold]")
+                        raise EnvironmentError(error_message)
 
             self.recording_data: ndarray = ndarray((0, self.channels), dtype=float64)
             self.is_recording: bool = False
@@ -135,11 +137,13 @@ class STT():
                             sd.play(audio_data, samplerate=sample_rate)
                             sd.wait()
                         else:
-                            print(f"[red][bold]{self.PRINT_PREFIX} AUDIO_OUT_DEVICE not numeric[/bold][/red]")
-                            exit(1)
+                            error_message = f"{self.PRINT_PREFIX} AUDIO_OUT_DEVICE not numeric"
+                            print(f"[red][bold]{error_message}[/bold][/red]")
+                            raise ValueError(error_message)
                     else:
-                        print(f"[bold][red]{self.PRINT_PREFIX} AUDIO_OUT_DEVICE is not set - this is required on Linux[/red][/bold]")
-                        exit(1)
+                        error_message = f"{self.PRINT_PREFIX} AUDIO_OUT_DEVICE is not set - this is required on Linux"
+                        print(f"[bold][red]{error_message}[/red][/bold]")
+                        raise EnvironmentError(error_message)
 
             with open(audio_file_path, 'rb') as f:
                 transcription = client.audio.transcriptions.create(

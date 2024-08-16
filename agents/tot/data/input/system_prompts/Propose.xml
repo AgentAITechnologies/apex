@@ -326,6 +326,8 @@ Do NOT include the if __name__ == "__main__" idiom, as this code is being execut
 
 Remember, generality and abstraction are your friend! Don't be afraid to simulate human input if necessary, but use direct programmatic approaches when practical. Use Python abstractions to keep your plan as robust and effective as possible. Remember to consider the statefulness of both the system and Python interpreter. Reuse code and prior assignments where possible.
 
+Your code should be modular and readable. Make sure to annotate types.
+
 If you plan to open a subprocess, open it in a non-blocking way, but make sure you maintain a way to access it so you may interact with it (or close it) in the future.
 
 Make sure to enclose your Python code in a fenced Markdown code block.
