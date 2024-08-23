@@ -133,21 +133,6 @@ def extract_language_and_code(markdown_string: str) -> Optional[tuple[str, str]]
     else:
         return None
     
-def extract_and_sort_steps(data):
-    # Regular expression to match the pattern and extract the number
-    pattern = r'<step_(\d+)>'
-    
-    # Filter and sort the keys
-    step_items = sorted(
-        [(k, v) for k, v in data.items() if (match := re.match(pattern, k))],
-        key=lambda x: int(re.match(pattern, x[0]).group(1))
-    )
-    
-    # Create the result list
-    result = [v for _, v in step_items]
-    
-    return result
-    
 def find_missing_format_items(string):
     # Regular expression pattern to match format items not surrounded by extra curly braces
     pattern = r'(?<!\{)\{(\w+)\}(?!\})'
@@ -172,7 +157,7 @@ def extract_steps(xml_string):
     results = [f"<step_{step}>{text.strip()}</step_{step}>" for step, text in matches]
     return results
 
-def get_yes_no_input(prompt: Optional[str] = None, rich_open: str = "", rich_close: str = "") -> bool:
+def get_yes_no_input(prompt: Optional[str] = None, rich_open: str = "", rich_close: str = "", with_cancel: bool = False) -> Optional[bool]:
     if bool(rich_open) ^ bool(rich_close):
         error_message = f"{PRINT_PREFIX} Only one parameter passed for rich (needs either both rich_open and rich_close, or neither)"
         print(f"[red][bold]{error_message}[/bold][/red]")
@@ -182,14 +167,16 @@ def get_yes_no_input(prompt: Optional[str] = None, rich_open: str = "", rich_clo
         if prompt:
             print(rich_open + prompt + rich_close, end=' ')
 
-        user_input = input("(y/n) > ").lower().strip()
+        user_input = input(f"(y/n{'/c' if with_cancel else ''}) > ").lower().strip()
 
         if user_input in ['y', 'yes']:
             return True
         elif user_input in ['n', 'no']:
             return False
+        elif with_cancel and user_input in ['c', 'cancel']:
+            return None
         else:
-            print("Invalid input. Please enter 'y' or 'n'.")
+            print(f"""Invalid input. Please enter 'y' or 'n'{" (or 'c' for 'cancel')" if with_cancel else ''}.""")
 
 def remove_escape_key(string: str) -> str:
     return string.replace('^[', '').replace('\x1b', '')

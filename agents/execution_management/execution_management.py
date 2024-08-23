@@ -33,11 +33,28 @@ class CodeExecutor:
         if prefix:
             self.PRINT_PREFIX = f"{prefix} {self.PRINT_PREFIX}"
         
-        if owner_name:
+        if not owner_name:
+            error_message = f"{self.PRINT_PREFIX} owner_name not provided"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise ValueError(error_message)
+        else:
             self.owner_name = owner_name
+
+        SESSIONS_DIR = os.environ.get("SESSIONS_DIR")
+        if not SESSIONS_DIR:
+            error_message = f"{self.PRINT_PREFIX} SESSIONS_DIR not set in environment"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise KeyError(error_message)
         
-        self.SESSION_DIR: str = os.path.join(os.environ.get("SESSIONS_DIR", "NO_PATH_SET"), self.owner_name)
-        self.CODE_DIR = os.path.join(self.SESSION_DIR, os.environ.get("OUTPUT_DIR", "NO_PATH_SET"))
+        self.SESSION_DIR: str = os.path.join(SESSIONS_DIR, self.owner_name)
+
+        OUTPUT_DIR = os.environ.get("OUTPUT_DIR")
+        if not OUTPUT_DIR:
+            error_message = f"{self.PRINT_PREFIX} OUTPUT_DIR not set in environment"
+            print(f"[red][bold]{error_message}[/bold][/red]")
+            raise KeyError(error_message)
+
+        self.CODE_DIR = os.path.join(self.SESSION_DIR, OUTPUT_DIR)
 
         create_directory(self.CODE_DIR)
 

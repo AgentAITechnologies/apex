@@ -46,7 +46,7 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        CRASH_INFO_LEVEL = int(os.environ.get("CRASH_INFO_LEVEL")) if os.environ.get("CRASH_INFO_LEVEL") and os.environ.get("CRASH_INFO_LEVEL").isdigit() else None
+        CRASH_INFO_LEVEL = int(os.environ.get("CRASH_INFO_LEVEL")) if os.environ.get("CRASH_INFO_LEVEL") and os.environ.get("CRASH_INFO_LEVEL").isdigit() else None # type: ignore
 
         AGENTAI_API_URL = os.environ.get("AGENTAI_API_URL")
         AGENTAI_API_KEY = os.environ.get("AGENTAI_API_KEY")

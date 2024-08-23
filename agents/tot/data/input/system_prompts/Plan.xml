@@ -316,6 +316,7 @@ navigated to the video page
 
 </example>
 
+{remote_examples}
 
 Remember, generality and abstraction are your friend! Don't be afraid to simulate human input if necessary, but use direct programmatic approaches when practical. Use Python abstractions to keep your plan as robust and effective as possible. Also, consider the effect your prior actions have on the state of both the system and your interpreter (for example, consider the fact that you have access to all the variables and functions from code that has been executed in previous steps - that is, if you set `x=5` in step 1, `x` would already be defined as `5` in steps 2..n).
 

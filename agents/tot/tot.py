@@ -18,15 +18,15 @@ from agents.prompt_management import load_system_prompt, load_user_prompt, get_m
 
 from agents.memory import Memory
 
-from remote.experience import stage_experience
+from remote.experience import get_remote_experiences, stage_experience
 from utils.context import get_platform_details
 from utils.custom_exceptions import ExecError
 from utils.enums import Role
 from utils.custom_types import FeedbackDict
-from utils.parsing import dict2xml, extract_and_sort_steps, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, remove_escape_key
+from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, remove_escape_key
 from utils.llm import llm_turns
 from utils.files import create_incrementing_directory
-from utils.constants import CLIENT_VERSION, LOCAL_LOGS
+from utils.constants import CLIENT_VERSION, FRIENDLY_COLOR, LOCAL_LOGS
 
 from anthropic import Anthropic
 
@@ -34,6 +34,8 @@ from anthropic import Anthropic
 PLAN_COUNT = int(os.environ.get("PLAN_COUNT", "5"))
 VOTER_COUNT = int(os.environ.get("VOTER_COUNT", "5"))
 PROPOSAL_COUNT = int(os.environ.get("PROPOSAL_COUNT", "5"))
+
+REMOTE_EXAMPLE_COUNT = int(os.environ.get("REMOTE_EXAMPLE_COUNT", "4"))
 
 EVAL_CATEGORIES = ["correctness", "elegance", "understandability", "specificity", "overall"]
 
@@ -109,6 +111,18 @@ class ToT(Agent):
 
             rprint(f"{self.PRINT_PREFIX} task:\n{self.current_task}")
 
+            rprint(f"{self.PRINT_PREFIX} getting remote experiences...")
+
+            REMOTE_EXPERIENCES = get_remote_experiences(target_vector_name="task",
+                                                                    target_vector_query=self.current_task,
+                                                                    limit=REMOTE_EXAMPLE_COUNT)
+            
+            # TODO: log this as an error depending on telemetry level
+            if REMOTE_EXPERIENCES:
+                rprint(f"{self.PRINT_PREFIX} done")
+            else:
+                rprint(f"{self.PRINT_PREFIX}[red][bold] No remote examples found for the current task... this is suspicious.[/bold][/red]")
+
             self.log_dir = create_incrementing_directory(self.output_dir, f"{self.name}_")
 
             with open(os.path.join(self.log_dir, RESULT_FILENAME), 'w') as logfile:
@@ -134,9 +148,10 @@ class ToT(Agent):
                                             
                 match state_path:
                     
-                    case "Plan":
+                    case "Plan":                        
                         system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
-                                                                                   "task": self.current_task})
+                                                                                   "task": self.current_task,
+                                                                                   "remote_examples": REMOTE_EXPERIENCES if REMOTE_EXPERIENCES else ""})
                         
                         user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                         "task": self.current_task,
@@ -199,9 +214,9 @@ class ToT(Agent):
 
                     case "SumPlanVotes":
                         plan_scores = self.reduce_scores(plan_candidates,
-                                                        plan_votes,
-                                                        plan_index_maps)
-
+                                                         plan_votes,
+                                                         plan_index_maps)
+                        
                         self.csm.transition("ChoosePlan", locals())
 
                     case "ChoosePlan":
@@ -211,7 +226,8 @@ class ToT(Agent):
                         self.csm.transition("Propose", locals())
 
                     case "Propose":
-                        system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": self.current_task})
+                        system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": self.current_task,
+                                                                                   "remote_examples": REMOTE_EXPERIENCES if REMOTE_EXPERIENCES else ""})
 
                         user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                         "task": self.current_task,
@@ -383,6 +399,10 @@ class ToT(Agent):
         except KeyboardInterrupt as e:
             rprint(f"{self.PRINT_PREFIX}[yellow][bold] Escape key pressed. Stopping the agent[/bold][/yellow]")
 
+        except Exception as e:
+            rprint(f"{self.PRINT_PREFIX}[red][bold] An error occurred: {str(e)}[/bold][/red]")
+            raise Exception(e)
+
         finally:
             self.finalize_task()
 
@@ -393,7 +413,10 @@ class ToT(Agent):
             PROVIDE_FEEDBACK = os.environ.get("PROVIDE_FEEDBACK") == "True"
             if PROVIDE_FEEDBACK:
                 feedback = self.get_feedback()
-                self.log_feedback(feedback)
+                if feedback:
+                    self.log_feedback(feedback)
+                else:
+                    rprint(f"[yellow][bold]{self.PRINT_PREFIX} No feedback to log[/bold][/yellow]")
             else:
                 rprint(f"[yellow][bold]{self.PRINT_PREFIX} PROVIDE_FEEDBACK not set to \"True\" in .env - not collecting performance feedback[/bold][/yellow]")
 
@@ -490,7 +513,7 @@ class ToT(Agent):
             os.remove(LOGFILE_PATH)
 
     # TODO: Summarize steps for easy human evaluation and pretty print the task
-    def get_feedback(self) -> FeedbackDict:
+    def get_feedback(self) -> Optional[FeedbackDict]:
         feedback_intro = f"\nThe task:\n{self.current_task}\n"
         
         if not self.interrupted:
@@ -498,19 +521,24 @@ class ToT(Agent):
         else:
             feedback_intro += "was interrupted and will be classified as a failure.\n"
 
-        feedback_intro += """
-[deep_sky_blue1][bold]Thank you again for providing feedback about the proformance of this program.
+        feedback_intro += f"""
+[{FRIENDLY_COLOR}][bold]Thank you again for providing feedback about the proformance of this program.
 Your contributions make this tool more effective for everyone.
-[italic]If you do not wish to be prompted for feedback in the future, simply disable this feature in your .env file.[/italic][/deep_sky_blue1]
+[italic]If you do not wish to be prompted for feedback in the future, simply disable this feature in your .env file.
+You may also type 'c' at this prompt to not provide feedback for this particular task.[/italic][/{FRIENDLY_COLOR}]
 """
         rprint(feedback_intro)
         
         # TODO: implement one-off bypass ('c' for cancel)
         if not self.interrupted:
             success_prompt = "Was the task completed correctly, even if it took a while or involved self-correcting errors?"
-            success = get_yes_no_input(success_prompt)
+            success = get_yes_no_input(success_prompt, with_cancel=True)
         else:
             success = False
+
+        if success is None:
+            rprint("[yellow][bold]Not profiving feedback for this task.[/bold][/yellow]")
+            return None
 
         if success:
             details_prompt = """How could future completions of this task be better?\n(e.g., more efficient, having fewer side effects, or being more closely aligned with your intentions)?
