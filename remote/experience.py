@@ -31,7 +31,7 @@ def stage_experience(log: dict) -> Optional[requests.Response]:
         print(f"[red][bold]{PRINT_PREFIX} AGENTAI_API_URL not set in .env - unable to log task trace[/red][/bold]")
         return None
 
-def get_experiences(target_vector_name: str, target_vector_query: str, limit: int) -> Optional[list[dict]]:
+def get_experiences(target_vector_name: str, target_vector_query: str, limit: int) -> Optional[list[dict] | dict]:
     AGENTAI_API_URL = os.environ.get("AGENTAI_API_URL")
     AGENTAI_API_KEY = os.environ.get("AGENTAI_API_KEY")
 
@@ -60,27 +60,31 @@ def get_remote_experiences(target_vector_name: str, target_vector_query: str, li
     experiences = get_experiences(target_vector_name, target_vector_query, limit)
 
     if experiences:
-        result = ""
-        
-        for i, experience in enumerate(experiences):
-            result += f"<example idx={i+1}>\n\n"
+        if "error" in experiences:
+            print(f"[red][bold]{PRINT_PREFIX} Error retrieving remote experiences: {experiences}[/red][/bold]")
+            return None
+        else:
+            result = ""
+            
+            for i, experience in enumerate(experiences):
+                result += f"<example idx={i+1}>\n\n"
 
-            result += experience['task'] + "\n"
-            result += f"<os_type>{experience['os_family']}<os_type>" + "\n"
+                result += experience['task'] + "\n"
+                result += f"<os_type>{experience['os_family']}<os_type>" + "\n"
 
-            result += experience['trace'] + "\n"
+                result += experience['trace'] + "\n"
 
-            result += f"<human_feedback>\n"
-            result += experience['feedback'] + "\n"
-            result += "</human_feedback>\n"
-            result += f"<agent_reflection>\n"
-            result += experience['elaboration'] + "\n"
-            result += "</agent_reflection>\n\n"
+                result += f"<human_feedback>\n"
+                result += experience['feedback'] + "\n"
+                result += "</human_feedback>\n"
+                result += f"<agent_reflection>\n"
+                result += experience['elaboration'] + "\n"
+                result += "</agent_reflection>\n\n"
 
-            result += "</example>\n"
-        
-        return result
-    
+                result += "</example>\n"
+            
+            return result
+
     else:
         # TODO: log this as an error depending on telemetry level
         print(f"[red][bold]{PRINT_PREFIX} No remote experiences found[/red][/bold]")

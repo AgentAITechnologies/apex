@@ -14,6 +14,8 @@ PRINT_PREFIX = "[bold][OOBE][/bold]"
 
 
 def get_token():
+    load_dotenv()
+    
     PROVIDE_FEEDBACK = os.environ.get("PROVIDE_FEEDBACK") == "True"
     CRASH_INFO_LEVEL = int(os.environ.get("CRASH_INFO_LEVEL")) if os.environ.get("CRASH_INFO_LEVEL") and os.environ.get("CRASH_INFO_LEVEL").isdigit() else None
     AGENTAI_API_URL = os.environ.get("AGENTAI_API_URL")

@@ -22,7 +22,7 @@ from remote.experience import get_remote_experiences, stage_experience
 from utils.context import get_platform_details
 from utils.custom_exceptions import ExecError
 from utils.enums import Role
-from utils.custom_types import FeedbackDict
+from utils.custom_types import FeedbackDict, PromptsDict
 from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, remove_escape_key
 from utils.llm import llm_turns
 from utils.files import create_incrementing_directory
@@ -114,8 +114,8 @@ class ToT(Agent):
             rprint(f"{self.PRINT_PREFIX} getting remote experiences...")
 
             REMOTE_EXPERIENCES = get_remote_experiences(target_vector_name="task",
-                                                                    target_vector_query=self.current_task,
-                                                                    limit=REMOTE_EXAMPLE_COUNT)
+                                                        target_vector_query=self.current_task,
+                                                        limit=REMOTE_EXAMPLE_COUNT)
             
             # TODO: log this as an error depending on telemetry level
             if REMOTE_EXPERIENCES:
@@ -186,8 +186,8 @@ class ToT(Agent):
                         start_seq = self.open_step_tag + "<evaluation>"
                         assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
                         
-                        plan_votes: list[str] = []
                         plan_index_maps: list[list[int]] = []
+                        prompts: list[PromptsDict] = []
 
                         for _ in range(VOTER_COUNT):
                             self.check_interrupt()
@@ -198,17 +198,17 @@ class ToT(Agent):
                                                                                                             "task": self.current_task,
                                                                                                             "plan_candidates_str": plan_candidates_str,
                                                                                                             "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
-
                             messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
-                            plan_votes.append(llm_turns(client=self.client,
-                                                        prompts={"system": system_prompt,
-                                                                "messages": messages},
-                                                        stop_sequences=["</evaluation>"],
-                                                        temperature=TEMP,
-                                                        n=1)[0])
-                            
+                            prompts.append({"system": system_prompt,
+                                            "messages": messages})
                             plan_index_maps.append(shuffled_indices)
+
+                        plan_votes = llm_turns(client=self.client,
+                                                prompts=prompts,
+                                                stop_sequences=["</evaluation>"],
+                                                temperature=TEMP,
+                                                n=None)
 
                         self.csm.transition("SumPlanVotes", locals())
 
@@ -263,8 +263,8 @@ class ToT(Agent):
                         start_seq = self.open_step_tag + "<evaluation>"
                         assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
 
-                        proposal_votes: list[str] = []
                         proposal_index_maps: list[list[int]] = []
+                        prompts: list[PromptsDict] = []
                         
                         for _ in range(VOTER_COUNT):
                             self.check_interrupt()
@@ -278,22 +278,23 @@ class ToT(Agent):
                                                                                                             "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
                             
                             messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
-
-                            proposal_votes.append(llm_turns(client=self.client,
-                                                            prompts={"system": system_prompt,
-                                                                    "messages": messages},
-                                                            stop_sequences=["</evaluation>"],
-                                                            temperature=TEMP,
-                                                            n=1)[0])
                             
+                            prompts.append({"system": system_prompt,
+                                            "messages": messages})
                             proposal_index_maps.append(shuffled_indices)
+
+                        proposal_votes = llm_turns(client=self.client,
+                                                    prompts=prompts,
+                                                    stop_sequences=["</evaluation>"],
+                                                    temperature=TEMP,
+                                                    n=None)
 
                         self.csm.transition("SumProposeVotes", locals())
 
                     case "SumProposeVotes":
                         proposal_scores = self.reduce_scores(proposal_candidates,
-                                                            proposal_votes,
-                                                            proposal_index_maps)
+                                                             proposal_votes,
+                                                             proposal_index_maps)
 
                         self.csm.transition("ChooseProposition", locals())
 

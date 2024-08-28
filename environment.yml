@@ -5,17 +5,15 @@ channels:
   - defaults
 dependencies:
   - python=3.10
+  - pip
   - pytest
   - types-requests
-  - types-pynput
   - mypy
   - python-dotenv
   - rich
   - anthropic
   - openai
   - ffmpeg
-  - soundfile
-  - sounddevice
   - scipy
   - alsa-lib
   - python-sounddevice
@@ -25,3 +23,8 @@ dependencies:
   - pygraphviz
   - playwright
   - backoff
+  - pip:
+    - types-pynput
+    - soundfile
+    - sounddevice
+    - playwright

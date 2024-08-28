@@ -7,6 +7,8 @@ import dotenv
 import requests
 from rich import print 
 
+import traceback
+
 from agents.agent_manager.agent_manager import AgentManager
 from agents.ui.ui import UI
 
@@ -108,7 +110,7 @@ if __name__ == "__main__":
                         exit(1)
                 else:
                     # TODO: Provide reporting tool for errors that may take place befor api key is aquired
-                    print(f"[red][bold]{PRINT_PREFIX} AGENTAI_API_KEY not set in .env - unable to log client error[/bold][/red]")
+                    print(f"[red][bold]{PRINT_PREFIX} AGENTAI_API_KEY not set in .env - unable to log client error:\n[/bold][/red]{traceback.format_exc()}")
             else:
                 print(f"[red][bold]{PRINT_PREFIX} AGENTAI_API_URL not set in .env - unable to log client error[/red][/bold]")
         else:
