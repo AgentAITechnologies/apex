@@ -71,7 +71,7 @@ if __name__ == "__main__":
                         }
 
                         user_message = f"""A crash has occured, and you have elected to share crash tracebacks in your .env file (CRASH_INFO_LEVEL > 1).
-    Just to confirm, are you okay sharing the following data? (y/n):
+    Just to confirm, are you okay sharing the following data?:
 
     {error}
 
