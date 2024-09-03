@@ -105,8 +105,6 @@ class ToT(Agent):
         self.interrupted = False
 
         try:
-            rprint(3 / 0)
-
             self.current_task: Optional[str] = xml2xmlstr(dict2xml(self.tasks[-1]))
 
             rprint(f"{self.PRINT_PREFIX}[yellow][bold] Press the escape key at any time to stop the agent[/bold][/yellow]")

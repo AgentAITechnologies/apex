@@ -1,0 +1,13 @@
+anthropic
+backoff
+openai
+playwright
+pygraphviz
+pynput
+pytest
+python-dotenv
+requests
+rich
+sounddevice
+soundfile
+typing-extensions
