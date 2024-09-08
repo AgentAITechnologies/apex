@@ -326,6 +326,10 @@ Do NOT include additional commentary in your response. Any notes should be in th
 
 Do NOT include the if __name__ == "__main__" idiom, as this code is being executed inline and is NOT __main__.
 
+Do NOT include calls to exit() or do anything that will kill the main process outright. Simply fall through or otherwise allow it to end naturally.
+
+Remember to use importlib to refresh your namespace after installing packages. Do NOT restart the interpreter if you need to refresh your namespace.
+
 Remember, generality and abstraction are your friend! Don't be afraid to simulate human input if necessary, but use direct programmatic approaches when practical. Use Python abstractions to keep your plan as robust and effective as possible. Remember to consider the statefulness of both the system and Python interpreter. Reuse code and prior assignments where possible.
 
 Your code should be modular and readable. Make sure to annotate types.

@@ -1,8 +1,9 @@
 anthropic
 backoff
+numpy
 openai
 playwright
-pygraphviz
+# pygraphviz
 pynput
 pytest
 python-dotenv

@@ -12,6 +12,10 @@ If an implementation opens a subprocess, it should be opened in a non-blocking w
 
 Proposed code should be modular and readable. Types should be annotated.
 
+There should be no colls to exit() or any other explicit termination of the host process.
+
+Any refresh of the namespace must be done by any means besides restarting the interpreter. Do NOT allow the interpreter to be restarted.
+
 Please evaluate which are the best and worst candidates (select only a single candidate each), then state your reasoning and final conclusion in the following format:
 <evaluation>
 <reasoning>{{REASONING}}</reasoning>

@@ -125,7 +125,7 @@ class ToT(Agent):
 
             self.log_dir = create_incrementing_directory(self.output_dir, f"{self.name}_")
 
-            with open(os.path.join(self.log_dir, RESULT_FILENAME), 'w') as logfile:
+            with open(os.path.join(self.log_dir, RESULT_FILENAME), 'w', errors="replace") as logfile:
                 logfile.write(self.current_task + "\n")
 
             if self.csm.current_state.name == "Done":
@@ -391,6 +391,7 @@ class ToT(Agent):
                         self.next_step()
 
                         if avg_yes_votes > 0.5:
+                            self.finalize_task()
                             self.csm.transition("Done", locals())
                         elif avg_error_votes > 0.5:
                             self.csm.transition("PlanErrorFix", locals())
@@ -577,8 +578,8 @@ If you believe it was optimal, please indicate this."""
         
         llm_response = llm_turns(self.client, {'system': system_prompt, 'messages': messages}, ["</reflection>"], TEMP, 1)[0]
 
-        correct_interpretation = get_yes_no_input(f"""Before your feedback is submitted, let's make sure the LLM understands your intentions.
-Here's how it interprets your feedback on the last run:
+        correct_interpretation = get_yes_no_input(f"""\n[{FRIENDLY_COLOR}]Before your feedback is submitted, let's make sure the LLM understands your intentions.
+Here's how it interprets your feedback on the last run:[/{FRIENDLY_COLOR}]
 {llm_response}
 [bold]Is this an accurate reflection of the meaning you intended?[/bold]""")
         

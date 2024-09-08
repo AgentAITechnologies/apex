@@ -61,7 +61,7 @@ def load_user_prompt(state_path: str, environ_path_key: str, dynamic_metaprompt:
             raise FileNotFoundError(error_message)
 
         else:
-            with open(os.path.join(user_prompt_dir, state_path+FILE_EXT), 'r') as f:
+            with open(os.path.join(user_prompt_dir, state_path+FILE_EXT), 'r', encoding="utf-8", errors='replace') as f:
                 user_prompt = f.read()
 
             if frmt:
@@ -90,7 +90,7 @@ def load_system_prompt(state_path: str, environ_path_key: str, frmt: dict[str, s
 
     sys_prompt_dir = os.path.join(environ_path, INPUT_DIR, SYS_PRMPT_DIR)
 
-    with open(os.path.join(sys_prompt_dir, state_path+FILE_EXT), 'r') as f:
+    with open(os.path.join(sys_prompt_dir, state_path+FILE_EXT), 'r', encoding="utf-8", errors='replace') as f:
         sys_prompt = f.read()
 
     if frmt:

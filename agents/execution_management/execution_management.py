@@ -66,7 +66,7 @@ class CodeExecutor:
     def write_code_step_file(self, code: str, step_num: int) -> None:
         file_path = os.path.join(self.CODE_DIR, f"step_{step_num}.py")
 
-        with open(file_path, "w") as file:
+        with open(file_path, "w", errors="replace") as file:
             file.write(code)
 
     def execute_code_step(self, step_num: int) -> tuple[str, str]:

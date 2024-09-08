@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-import os
-
 from copy import deepcopy
+import platform
 from typing import Optional
 
 import dotenv
 
-import pygraphviz as pgv
+# pygraphviz/graphviz installation is nontrivial on Windows
+if platform.system() == 'Linux':
+    import pygraphviz as pgv
+
 from rich import print
 
 from utils.custom_exceptions import ConversationNodeError, ConversationEdgeError
@@ -112,7 +114,11 @@ class ConversationStateMachine:
         self.state_history: list[ConversationState] = [self.current_state]
 
         self.print_state_hierarchy()
-        self.visualize(owner_class_name)
+
+        # pygraphviz/graphviz installation is nontrivial on Windows
+        if platform.system() == 'Linux':
+            self.visualize(owner_class_name)
+
         self.print_current_state()
 
     def transition(self, trigger: str, locals) -> ConversationState:
@@ -230,7 +236,7 @@ class ConversationStateMachine:
             error_message = f"{self.PRINT_PREFIX} OUTPUT_DIR not set"
             print(f"[red][bold]{error_message}[/bold][/red]")
             raise KeyError(error_message)
-     
+
     def print_current_state(self):
         print(f"{self.PRINT_PREFIX} self.current_state: [yellow]{self.current_state}[/yellow]")
         print(f"{self.PRINT_PREFIX} self.current_state.get_hpath(): [yellow]{self.current_state.get_hpath()}[/yellow]")
