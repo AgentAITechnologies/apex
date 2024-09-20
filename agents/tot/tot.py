@@ -518,7 +518,7 @@ class ToT(Agent):
             feedback_intro += "was interrupted and will be classified as a failure.\n"
 
         feedback_intro += f"""
-[{FRIENDLY_COLOR}][bold]Thank you again for providing feedback about the proformance of this program.
+[{FRIENDLY_COLOR}][bold]Thank you again for providing feedback about the performance of this program.
 Your contributions make this tool more effective for everyone.
 [italic]If you do not wish to be prompted for feedback in the future, simply disable this feature in your .env file.
 You may also type 'c' at this prompt to not provide feedback for this particular task.[/italic][/{FRIENDLY_COLOR}]

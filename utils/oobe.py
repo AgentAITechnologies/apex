@@ -12,6 +12,8 @@ from utils.parsing import get_yes_no_input
 
 PRINT_PREFIX = "[bold][OOBE][/bold]"
 
+AUTH_TIMEOUT_MS = 90000 * 2
+
 
 def get_token():
     load_dotenv()
@@ -39,7 +41,7 @@ def get_token():
             page.goto(AUTH_URL)
             
             print("Waiting for authorization and redirect...")
-            with page.expect_response(lambda response: REDIRECT_URL in response.url, timeout=90000) as response_info:
+            with page.expect_response(lambda response: REDIRECT_URL in response.url, timeout=AUTH_TIMEOUT_MS) as response_info:
                 response = response_info.value
             
             content = response.text()
