@@ -14,7 +14,7 @@ Human-computer interaction has changed dramatically over the history of computer
 LLM-powered agents are the frontier of practical AI, but most attempts do not capture the state of the art. This is because they are focused on high performance in the short term; they provide LLMs with hardcoded tools along with corresponding use instructions for narrowly defined task scopes. This facilitates reliable performance but narrows capability and is incapable of growth. By harnessing the cutting edge in research and employing novel techniques, apex™ takes a step beyond what is currently available to the public and aims to enhance user productivity is ways current approaches are incapable of. 
 
 ## Installation Instructions
-How to install and run the project.
+Coming soon!
 
 ## Tips
 We encourage you to push *apex*™ to the limits of its capability, and even a little beyond what you think it can handle.
