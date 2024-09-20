@@ -5,7 +5,7 @@
 
 In a way, *apex*™ gives LLMs a ‘body’ in the form of the machine the software is running on. *apex*™ utilizes a combination of cutting-edge techniques, including Tree of Thought, RAG, dynamic vector-store memory, multi-agent collaboration, and most importantly, a tool-free architecture, to deliver an experience designed for robust performance in the long term. 
 
-This architecture is built for the future. It is not constrained by fixed tools, and leverages LLM-powered soft reasoning wherever possible. This means that while it may stumble a bit now, as the experience pool grows, the codebase matures, and LLMs become more powerful, this tool will become increasingly generally capable.
+__This architecture is built for the future. It is not constrained by fixed tools, and leverages LLM-powered soft reasoning wherever possible. This means that while it may stumble a bit now, as the experience pool grows, the codebase matures, and LLMs become more powerful, this tool will become increasingly generally capable.__
 
 ## Why this matters
 
@@ -25,7 +25,7 @@ That being said, this product is in an *experimental* stage of development. Do n
 
 *apex*™ is best suited for tasks that directly map onto programmatic interaction with the computer (such as Python or shell scripts) than tasks that require mouse and keyboard emulation or visual screen interpretation. This tool is currently better equipped to, say, compile a list of machines on a network vulnerable to some new exploit and automatically patch them than to research especially fluffy cat breeds online.
 
-*apex*™ may not always complete a task the way you want it the first time. In fact, at this time, it will probably fail more than it succeeds. This is expected at this stage, as the experience pool is incredibly small, and many important features are not yet implemented. By enabling telemetry and providing high-quality feedback, expect performance on tasks related to the ones you have tried to increase over time (it takes a little while for new experiences to be ingested by our memory backend). __This architecture is built for the future. It is not constrained by fixed tools, and leverages LLM-powered soft reasoning wherever possible. As the experience pool grows, the codebase matures, and LLMs become more powerful, this tool will become increasingly generally capable.__
+*apex*™ may not always complete a task the way you want it the first time. In fact, at this time, it will probably fail more than it succeeds. This is expected at this stage, as the experience pool is incredibly small, and many important features are not yet implemented. By enabling telemetry and providing high-quality feedback, expect performance on tasks related to the ones you have tried to increase over time (it takes a little while for new experiences to be ingested by our memory backend).
 
 ## Usage Examples
 
