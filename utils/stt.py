@@ -96,7 +96,7 @@ class STT():
             # sounddevice.py does not annotate the default (None, None) as Optional
             # modified line (58+3 = 61) to include "from typing import Optional"
             # modified line (2075+3 = 2078) to include type annotation
-            sd.default.device = self.audio_in_device, None
+            sd.default.device = self.audio_in_device, None  # type: ignore
 
             with sd.InputStream(samplerate=self.fps, device=self.audio_in_device, channels=self.channels) as instream:
                 with keyboard.Listener(on_press=self.on_press, on_release=self.on_release) as listener:
@@ -130,7 +130,7 @@ class STT():
                         if audio_out_device_str.isnumeric():
                             self.audio_out_device = int(audio_out_device_str)
 
-                            sd.default.device = self.audio_in_device, self.audio_out_device
+                            sd.default.device = self.audio_in_device, self.audio_out_device # type: ignore
 
                             audio_data, sample_rate = sf.read(audio_file_path)
 

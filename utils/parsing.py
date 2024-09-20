@@ -1,8 +1,8 @@
-from typing import Optional
+import re
+from typing import Optional, Union
 
 import glob
 import os
-import re
 
 import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element
@@ -34,12 +34,36 @@ def files2dict(path: str, extension: str) -> dict[str, str]:
 
     return retval
 
+def escape_xml(text: str) -> str:
+    def replace(match):
+        char = match.group(0)
+        if char == '&': return '&amp;'
+        if char == '<': return '&lt;'
+        if char == '>': return '&gt;'
+        if char == "'": return '&apos;'
+        if char == '"': return '&quot;'
+    
+    # Use negative lookbehind and lookahead to avoid escaping < and > in tags
+    pattern = r'(?<!<)([&<>\'""])(?![^<]*>)'
+    return re.sub(pattern, replace, text)
+
+def unescape_xml(text: str) -> str:
+    return text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&apos;", "'").replace("&quot;", '"')
+
 def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
+    def escape_code_blocks(text: str) -> str:
+        def escape_block(match):
+            return f"```{match.group(1)}\n{escape_xml(match.group(2))}```"
+        
+        return re.sub(r"```(\w*)\n(.*?)```", escape_block, text, flags=re.DOTALL)
+
+    xml_string = escape_code_blocks(xml_string)
+
     try:
         xml_string = xml_string.strip()
         xml_string = f"<root>{xml_string}</root>"
         root = ET.fromstring(xml_string)
-
+        
     except ET.ParseError:
         if depth < 6:
             print(f"{PRINT_PREFIX} [yellow][bold]Error parsing XML:\n{xml_string}[/bold][/yellow]")
@@ -52,7 +76,7 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
     If there are any singleton tags, you should close them or replace them with an equivalent description."""
             user_prompt = f"Fix the following XML file according to the given instructions. Be especially vigilant for singleton tags:\n{xml_string}\n"
             
-            assistant_prompt = "<root>"
+            assistant_prompt = ""
             stop_seq = "</root>"
 
             messages = [get_msg(Role.USER, user_prompt), get_msg(Role.ASSISTANT, assistant_prompt)]
@@ -70,31 +94,28 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
             print(f"{PRINT_PREFIX} [red][bold]{error_message}[/bold][/red]")
             raise RecursionError(error_message)
     
-    def parse_element(element: ET.Element) -> Optional[dict] | Optional[str]:
+    def parse_element(element: ET.Element) -> Union[dict, str, list, None]:
         if len(element) == 0:
-            if element.text is None:
-                return None
+            text = element.text.strip() if element.text else None
+            return None if text == "None" else text
+        
+        result = {}
+        for child in element:
+            child_result = parse_element(child)
+            if child.tag in result:
+                if isinstance(result[child.tag], list):
+                    result[child.tag].append(child_result)
+                else:
+                    result[child.tag] = [result[child.tag], child_result]
             else:
-                return element.text # .strip() if element.text != ' ' else element.text
-        else:
-            result = {}
-            for child in element:
-                child_result = parse_element(child)
-                if child_result is not None:
-                    if child_result != "None":
-                        result[child.tag] = child_result
-                        result.update(child.attrib)
-                    else:
-                        result[child.tag] = None
-            return result
-    
-    result = parse_element(root)
-    if isinstance(result, dict):
+                result[child.tag] = child_result
+        
+        if element.attrib:
+            result['_attributes'] = {k: (None if v == "None" else v) for k, v in element.attrib.items()}
+        
         return result
-    else:
-        error_message = f"{PRINT_PREFIX} root element evaluated to {type(result)}, expected dict"
-        print(f"[red][bold]{error_message}[/bold][/red]")
-        raise TypeError(error_message)
+
+    return parse_element(root)
 
 def dict2xml(d: NestedStrDict, tag: str="root") -> Element:
     """
