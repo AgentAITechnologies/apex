@@ -12,7 +12,7 @@ You should have received a copy of the GNU General Public License along with thi
 
 Pursuant to Section 7 of GPL-3.0, this license incorporates the following Supplemental Terms, the acceptance of which is indicated by your modification or propagation of this Program. 
 
-1.   Any propagation or conveyance of this Program must include this Notice, including the copyright notice above and the terms of this license. 
+1.  Any propagation or conveyance of this Program must include this Notice, including the copyright notice above and the terms of this license. 
 
 2.  You must not misrepresent the origin of this Program.  Any modifications of this Program must be reasonably identified and indicated as being not part of the original program. 
 
