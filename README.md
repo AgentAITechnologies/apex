@@ -1,22 +1,22 @@
-# Welcome to *apex*™!
+# Welcome to *apex*™! 🚀
 
 ## Project Overview
-*apex*™ is a system that enables LLM-powered agents to act as the primary interface between the user and system, enabling advanced AI collaboration for any task. It represents a new way to interact with one’s PC; simply engage in a conversation as one would a colleague and get work done. Actions will be performed automatically to accomplish tasks a user collaboratively specifies alongside the tool. It also connects to a hosted memory of prior experiences, which allows *apex*™ to learn from previous experiences. 
+*apex*™ is a system that enables LLM-powered agents to act as the primary interface between the user and system, enabling advanced AI collaboration for any task. It represents a new way to interact with one's PC; simply engage in a conversation as one would a colleague and get work done. Actions will be performed automatically to accomplish tasks a user collaboratively specifies alongside the tool. It also connects to a hosted memory of prior experiences, which allows *apex*™ to learn from previous experiences. 
 
-In a way, *apex*™ gives LLMs a ‘body’ in the form of the machine the software is running on. *apex*™ utilizes a combination of cutting-edge techniques, including Tree of Thought, RAG, dynamic vector-store memory, multi-agent collaboration, and most importantly, a tool-free architecture, to deliver an experience designed for robust performance in the long term. 
+In a way, *apex*™ gives LLMs a 'body' in the form of the machine the software is running on. *apex*™ utilizes a combination of cutting-edge techniques, including Tree of Thought, RAG, dynamic vector-store memory, multi-agent collaboration, and most importantly, a tool-free architecture, to deliver an experience designed for robust performance in the long term. 
 
-__This architecture is built for the future. It is not constrained by fixed tools, and leverages LLM-powered soft reasoning wherever possible. This means that while it may stumble a bit now, as the experience pool grows, the codebase matures, and LLMs become more powerful, this tool will become increasingly generally capable.__
+__This architecture is built for the future. It is not constrained by fixed tools, and leverages LLM-powered soft reasoning wherever possible. This means that while it may stumble a bit now, as the experience pool grows, the codebase matures, and LLMs become more powerful, this tool will become increasingly generally capable.__ 🌱
 
-## Why this matters
+## Why this matters 🌟
 
 Human-computer interaction has changed dramatically over the history of computer science. From plugboards, to switches, to punch cards, to interactive terminals, and now the mouse and GUI, we have progressively abstracted ourselves away from the truth of the machine so we can be more productive. 
 
-LLM-powered agents are the frontier of practical AI, but most attempts do not capture the state of the art. This is because they are focused on high performance in the short term; they provide LLMs with hardcoded tools along with corresponding use instructions for narrowly defined task scopes. This facilitates reliable performance but narrows capability and is incapable of growth. By harnessing the cutting edge in research and employing novel techniques, apex™ takes a step beyond what is currently available to the public and aims to enhance user productivity is ways current approaches are incapable of. 
+__LLM-powered agents are the frontier of practical AI, but most attempts do not capture the state of the art.__ This is because they are focused on high performance in the short term; they provide LLMs with hardcoded tools along with corresponding use instructions for narrowly defined task scopes. This facilitates reliable performance but narrows capability and is incapable of growth. __By harnessing the cutting edge in research and employing novel techniques, apex™ takes a step beyond what is currently available to the public and aims to enhance user productivity is ways current approaches are incapable of.__
 
 ## Installation Instructions
-Coming soon!
+Coming soon! ⏳
 
-## Tips
+## Tips 💡
 We encourage you to push *apex*™ to the limits of its capability, and even a little beyond what you think it can handle.
 
 *apex*™ learns from prior experience and human feedback. By allowing *apex*™ to develop a diverse experience pool with salient feedback, its performance will increase over time. We encourage you to allow full telemetry so *apex*™ may learn from your interactions *(you will have the opportunity to review any and all information sent to us)*.
@@ -30,4 +30,4 @@ That being said, this product is in an *experimental* stage of development. Do n
 
 ---
 
-__Thank you for your interest in our project!__
+__Thank you for your interest in our project!__ 🙏
