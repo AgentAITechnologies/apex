@@ -14,7 +14,46 @@ Human-computer interaction has changed dramatically over the history of computer
 __LLM-powered agents are the frontier of practical AI, but most attempts do not capture the state of the art.__ This is because they are focused on high performance in the short term; they provide LLMs with hardcoded tools along with corresponding use instructions for narrowly defined task scopes. This facilitates reliable performance but narrows capability and is incapable of growth. __By harnessing the cutting edge in research and employing novel techniques, apex™ takes a step beyond what is currently available to the public and aims to enhance user productivity is ways current approaches are incapable of.__
 
 ## Installation Instructions
-Coming soon! ⏳
+
+### Windows
+1. __Install Python__
+    1. Download the __Python 3.10.11__ installer for your architecture at https://www.python.org/downloads/release/python-31011/
+    2. Run the installer
+        - Ensure ```Add python.exe to PATH``` is checked
+        - Check ```Use admin priviliges when installing py.exe``` according to your preference
+            - If you're the only user on your personal machine, checking this box can make Python usage more convenient. However, in a managed environment or if you prefer keeping installations user-specific, you might choose to leave it unchecked.
+    3. Choose ```Install Now```
+    4. Choose ```Disable path length limit``` when prompted
+    5. Close the installer
+2. __Ensure Python command is recognized__
+    1. Open the Start menu
+    2. Type ```environment variables```
+    3. Choose ```Edit the system environment variables```
+    4. Click the ```Environment Variables...``` button under the ```Advanced``` tab
+    5. Select ```Path``` under ```User variables for <your_username>``` and choose ```Edit...```
+    6. Ensure ```C:\Users\rod_j_m\AppData\Local\Programs\Python\Python310\Scripts\``` and ```C:\Users\rod_j_m\AppData\Local\Programs\Python\Python310\``` are listed __above__ ```%USERPROFILE%\AppData\Local\Microsoft\WindowsApps``` by using the ```Move Up``` and ```Move Down`` buttons
+3. __Clone the repo__
+    1. Install ```git``` if not already installed
+        1. Navigate to https://gitforwindows.org/
+        2. Click ```Download```
+        3. Run the installer executible
+            - You may uncheck ```Windows Explorer integration``` depending on preference
+            - We reccommend ```Nano``` as the preferred editor for first-time users
+            - Other options may be safely left as default
+        4. Continue through the installation
+    2. Open ```File Explorer``` and navigate to your preferred installation direftory for *apex*™
+    3. Right-click and select ```Open in Terminal```
+    4. Run ```git clone https://github.com/AgentAITechnologies/apex.git```
+4. __Configure the Program__
+    1. Using the same terminal, change directory into the *apex*™ folder by running ```cd apex```
+    2. Run ```.\win_install.ps1```
+        - Enter your Anthropic API key when prompted (See https://docs.anthropic.com/en/docs/initial-setup for guidance on managing Anthropic API keys)
+5. __Run the Program__
+    1. In the *apex*™ folder, right-click and open Terminal
+    1. Run ```.\win_run.ps1```
+
+### Linux
+⏳ Deatiled instructions coming soon!
 
 ## Tips 💡
 We encourage you to push *apex*™ to the limits of its capability, and even a little beyond what you think it can handle.
