@@ -1,3 +1,5 @@
+SPDX-License-Identifier: GPL-3.0-or-later
+
 apex™ Software Copyright and GPL License Notice 
 
 apex™ program and documentation Copyright 2024, AgentAI Technologies LLC.
