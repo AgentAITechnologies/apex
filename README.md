@@ -44,11 +44,11 @@ __LLM-powered agents are the frontier of practical AI, but most attempts do not 
     2. Open ```File Explorer``` and navigate to your preferred installation direftory for *apex*™
     3. Right-click and select ```Open in Terminal```
     4. Run ```git clone https://github.com/AgentAITechnologies/apex.git```
-4. __Configure the Program__
+4. __Configure the program__
     1. Using the same terminal, change directory into the *apex*™ folder by running ```cd apex```
     2. Run ```.\win_install.ps1```
         - Enter your Anthropic API key when prompted (See https://docs.anthropic.com/en/docs/initial-setup for guidance on managing Anthropic API keys)
-5. __Run the Program__
+5. __Run the program__
     1. In the *apex*™ folder, right-click and open Terminal
     1. Run ```.\win_run.ps1```
 
