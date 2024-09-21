@@ -1,0 +1,31 @@
+apex™ Software Copyright and GPL License Notice 
+
+apex™ program and documentation Copyright 2024, AgentAI Technologies LLC. 
+
+Contact:  contact@agentai.co
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by  the Free Software Foundation, either version 3 of the License (GPL-3.0), or  (at your option) any later version. 
+
+This program is distributed in the hope that it will be useful,  but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details, as well as the Supplemental Terms below. 
+
+You should have received a copy of the GNU General Public License along with this program.  If not, see <http://www.gnu.org/licenses/>. 
+
+Pursuant to Section 7 of GPL-3.0, this license incorporates the following Supplemental Terms, the acceptance of which is indicated by your modification or propagation of this Program. 
+
+1.   Any propagation or conveyance of this Program must include this Notice, including the copyright notice above and the terms of this license. 
+
+2.  You must not misrepresent the origin of this Program.  Any modifications of this Program must be reasonably identified and indicated as being not part of the original program. 
+
+3.  Except as required by Supplemental Term 1, above, you are not authorized to use the name, image or likeness of, and this license does not grant any right to any right of publicity held by, the authors of the licensed program or the principals of AgentAI Technologies LLC.  
+
+4.  This license of the Program does not grant any rights to other intellectual property held by AgentAI Technologies LLC or its principals, including (without limitation) (i) rights to this Program not explicitly granted herein; (ii) software to which this Notice is not attached, even if used with this Program, (iii) software (including the same software as this Program) that is distributed, reproduced, or otherwise exploited by AgentAI Technologies or its licensees subject to license terms other than this license, and (iv) trademarks, service marks, corporate names and other identifiers of source or origin, whether registered or unregistered.  You may not distribute any modification of this Program using the trademark APEX or other trademarks or other identifiers of source or origin held by AgentAI Technologies LLC, or claim any affiliation or association with AgentAI Technologies LLC or its principals, employees, agents, successors, and assigns. 
+
+5.  Without limiting the scope of Section 15 (Disclaimer of Warranty) of GPL-3.0, this Program is provided and licensed subject to the following additional disclaimer. 
+
+TO THE FULLEST EXTENT PERMISSIBLE UNDER APPLICABLE LAW, THIS PROGRAM IS PROVIDED TO YOU "AS IS," WITH ALL FAULTS, WITHOUT WARRANTY OF ANY KIND.  AGENTAI TECHNOLOGIES LLC DISCLAIMS ANY AND ALL WARRANTIES, WHETHER EXPRESS, IMPLIED OR STATUTORY, OR ARISING BY COURSE OF DEALING OR PERFORMANCE, CUSTOM, USAGE IN THE TRADE, OR OTHERWISE, IN CONNECTION WITH THIS PROGRAM AND ITS USE, INCLUDING (WITHOUT LIMITATION):  IMPLIED WARRANTIES OF MERCHANTABILITY, SATISFACTORY QUALITY, FITNESS FOR A PARTICULAR PURPOSE, NONINFRINGEMENT OR MISAPPROPRIATION OF THIRD PARTY INTELLECTUAL PROPERTY RIGHTS; WARRANTIES THAT THE PROGRAM WILL MEET YOUR REQUIREMENTS, WARRANTIES THAT THE PROGRAM IS free from defects, faults, or errors, THAT OPERATION OF THE PROGRAM WILL BE UNINTERRUPTED OR ERROR-FREE, AND THAT THE PROGRAM WILL BE COMPATIBLE WITH THIRD PARTY SOFTWARE;  AND WARRANTIES THAT ANY DEFECTS, FAULTS OR ERRORS IN THE PROGRAM WILL BE CORRECTED.  NO ORAL OR WRITTEN STATEMENT OR REPRESENTATION BY AGENTAI TECHNOLOGIES LLC, OR ITS PRINCIPALS AGENTS OR EMPLOYEES, SHALL CONSTITUTE OR CREATE A WARRANTY.  SOME JURISDICTIONS DO NOT ALLOW THE EXCLUSION OF OR LIMITATIONS ON IMPLIED WARRANTIES OR THE LIMITATIONS ON THE APPLICABLE STATUTORY RIGHTS OF A CONSUMER, SO SOME OR ALL OF THE ABOVE EXCLUSIONS AND LIMITATIONS MAY NOT APPLY TO YOU. 
+
+6.  Without limiting the scope of Section 16 (Limitation of Liability) of GPL-3.0, this Program is provided and licensed subject to the following additional limitations of liability. 
+
+YOU ASSUME ALL RISKS ASSOCIATED WITH THE USE OF THIS PROGRAM AND MODIFICATIONS OF THIS PROGRAM THAT YOU MAY MAKE, INCLUDING ALL RISKS AND LIABLITIES REGARDING SOFTWARE AND DATA WITH WHICH THIS PROGRAM MAY BE USED OR TO WHICH IT HAS ACCESS, INCLUDING RISKS AND LIABILITIES THAT MAY BE ASSOCIATED WITH PERSONAL IDENTIFYING INFORMATION ACCESSED BY THIS PROGRAM OR SOFTWARE WITH WHICH THIS PROGRAM IS USED OR TO WHICH IT HAS ACCESS.  YOU ASSUME ALL RISK AND LIABILITY REGARDING THE QUALITY AND PERFORMANCE OF THIS PROGRAM, AND COMPLIANCE OF THE PROGRAM AND ITS USE WITH ALL APPLICABLE LAWS AND REGULATIONS.  IN NO EVENT SHALL AGENTAI TECHNOLOGIES LLC BE LIABLE FOR ANY LOST DATA OR CONTENT, LOST PROFITS, BUSINESS INTERRUPTION, LOSS OF GOODWILL, OR FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES ARISING FROM OR RELATING TO THE PROGRAM, EVEN IF AGENTAI TECHNOLOGIES LLC HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH LOSS OR DAMAGES. 
+
+7.  If you convey this Program (or any modifications of it) and assume contractual liability for the program to recipients of it, you agree to indemnify AgentAI Technologies LLC, and its principals, employees, agents, successors and assigns for any liability that those contractual assumptions impose on AgentAI Technologies LLC. 
