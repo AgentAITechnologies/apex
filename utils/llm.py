@@ -153,17 +153,23 @@ def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict | list[PromptsDic
 
             if isinstance(client, Anthropic):
                 with concurrent.futures.ThreadPoolExecutor(max_workers=n) as executor:
-                    futures = [
-                        executor.submit(
-                            llm_call_anthropic, 
-                            client, 
-                            prompts['system'], 
-                            prompts['messages'], 
-                            stop_sequences, 
-                            temperature,
-                            max_tokens=max_tokens
-                        ) for _ in range(n)
-                    ]
+                    futures = []
+
+                    for i in range(n):
+                        futures.append(
+                            executor.submit(
+                                llm_call_anthropic, 
+                                client, 
+                                prompts['system'], 
+                                prompts['messages'], 
+                                stop_sequences, 
+                                temperature,
+                                max_tokens=max_tokens
+                            )
+                        )
+
+                        # if i < n - 1:  # Don't delay after the last submission
+                            # time.sleep(0.1)
                     
                     concurrent.futures.wait(futures)
 
@@ -229,8 +235,8 @@ got {type(prompt['system'])} and {type(prompt['messages'])} respectively instead
                     )
                     futures.append(future)
                     
-                    if i < n - 1:  # Don't delay after the last submission
-                        time.sleep(0.1)
+                    # if i < n - 1:  # Don't delay after the last submission
+                        # time.sleep(0.1)
                     
                 concurrent.futures.wait(futures)
                 llm_call_anthropic_futures_to_texts(texts, futures)

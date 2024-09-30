@@ -76,7 +76,7 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
     If there are any singleton tags, you should close them or replace them with an equivalent description."""
             user_prompt = f"Fix the following XML file according to the given instructions. Be especially vigilant for singleton tags:\n{xml_string}\n"
             
-            assistant_prompt = ""
+            assistant_prompt = "<root>"
             stop_seq = "</root>"
 
             messages = [get_msg(Role.USER, user_prompt), get_msg(Role.ASSISTANT, assistant_prompt)]
