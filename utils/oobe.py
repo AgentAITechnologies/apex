@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 from dotenv import load_dotenv, set_key
 
 from playwright.sync_api import sync_playwright
@@ -65,10 +66,42 @@ def eula_decline():
     print("[yellow][bold]Please accept the End User License Agreement to launch the tool[/bold][/yellow]")
     exit(0)
 
-def setup_environment_variables(required_keys):
+def template2env(template_file=None, env_file=None):
+    if template_file is None:
+        template_file = os.path.join('.', '.env.template')
+    if env_file is None:
+        env_file = os.path.join('.', '.env')
+
+    if os.path.exists(template_file) and not os.path.exists(env_file):
+        try:
+            with open(template_file, 'r') as source, open(env_file, 'w') as destination:
+                destination.write(source.read())
+            print(f"{PRINT_PREFIX} Copied {template_file} to {env_file}")
+        except IOError as e:
+            print(f"[red][bold]{PRINT_PREFIX} Error copying file: {e}[/red][/bold]")
+    elif os.path.exists(env_file):
+        print(f"{PRINT_PREFIX} {env_file} already exists. No action taken.")
+    else:
+        print(f"[yellow][bold]{PRINT_PREFIX} {template_file} not found. No action taken.[/yellow][/bold]")
+
+def setup_environment_variables(required_keys, env_file='.env'):
     load_dotenv()
 
-    env_file = '.env'
+    from utils.constants import USE_ANTHROPIC
+    if USE_ANTHROPIC:
+        if os.getenv('ANTHROPIC_API_KEY') == "YOUR_API_KEY_HERE":
+            print(f"{PRINT_PREFIX} Your Anthropic API key is not set.")
+            print(f"{PRINT_PREFIX} Please enter your Anthropic API key:")
+            new_api_key = input().strip()
+            
+            set_key(env_file, 'ANTHROPIC_API_KEY', new_api_key)
+            
+            print(f"{PRINT_PREFIX} API key has been updated in the .env file.")
+            
+            load_dotenv(override=True)
+        else:
+            print(f"{PRINT_PREFIX} Anthropic API key is already set.")
+
     if not os.path.exists(env_file):
         print(f"[red][bold]{PRINT_PREFIX} Cound't find env file '{env_file}'![/bold][red]")
         raise FileNotFoundError(f"{PRINT_PREFIX} Cound't find .env!")

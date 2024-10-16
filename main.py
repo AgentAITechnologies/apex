@@ -1,3 +1,5 @@
+PRINT_PREFIX = "[bold][MAIN][/bold]"
+
 import json
 import sys
 import anthropic
@@ -9,19 +11,23 @@ from rich import print
 
 import traceback
 
-from agents.agent_manager.agent_manager import AgentManager
-from agents.ui.ui import UI
+from utils.oobe import setup_environment_variables, template2env
 
-from utils.oobe import setup_environment_variables
+template2env()
+print(f"{PRINT_PREFIX} dotenv.load_dotenv(override=True): {dotenv.load_dotenv(override=True)}")
+
 from utils.parsing import get_yes_no_input
 from utils.constants import *
 
+on_load_dotenv()
 
-PRINT_PREFIX = "[bold][MAIN][/bold]"
+from agents.agent_manager.agent_manager import AgentManager
+from agents.ui.ui import UI
 
 
 def main():
     setup_environment_variables(REQUIRED_SETUP_KEYS)
+    
     dotenv.load_dotenv()
 
     print()    
