@@ -1,11 +1,13 @@
 
-from anthropic import Anthropic
-import dotenv
+from typing import Optional
 
-from rich import print
+import dotenv
+from anthropic import Anthropic
+
+from utils.console_io import debug_print as dprint
 
 class Agent():
-    def __init__(self, client: Anthropic, prefix, name: str, description: str, tasks: list[dict]):
+    def __init__(self, client: Anthropic, prefix: Optional[str], name: str, description: str, tasks: list[dict]):
         dotenv.load_dotenv()
 
         self.client = client
@@ -18,7 +20,7 @@ class Agent():
         self.description = description
         self.tasks = tasks
 
-        print(f"{self.PRINT_PREFIX} dotenv.load_dotenv(): {dotenv.load_dotenv()}")
+        dprint(f"{self.PRINT_PREFIX} dotenv.load_dotenv(): {dotenv.load_dotenv()}")
 
     def add_task(self, task: dict):
         self.tasks.append(task)

@@ -204,3 +204,13 @@ def get_yes_no_input(prompt: Optional[str] = None, rich_open: str = "", rich_clo
 
 def remove_escape_key(string: str) -> str:
     return string.replace('^[', '').replace('\x1b', '')
+
+def format_nested_dict(d, indent=0):
+    lines = []
+    for key, value in d.items():
+        if isinstance(value, dict):
+            lines.append('  ' * indent + f"{key}:")
+            lines.append(format_nested_dict(value, indent + 1))
+        else:
+            lines.append('  ' * indent + f"{key}: {value}")
+    return '\n'.join(lines)

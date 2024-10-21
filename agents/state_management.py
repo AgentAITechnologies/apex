@@ -10,7 +10,8 @@ import dotenv
 if platform.system() == 'Linux':
     import pygraphviz as pgv
 
-from rich import print
+from rich import print as rprint
+from utils.console_io import debug_print as dprint
 
 from utils.custom_exceptions import ConversationNodeError, ConversationEdgeError
 
@@ -78,7 +79,7 @@ class ConversationState:
                 return self.name
         else:
             error_message = f"{self.PRINT_PREFIX} self.name not assigned"
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise ConversationNodeError(error_message)
         
     def on_enter(self, csm: ConversationStateMachine, locals):
@@ -95,7 +96,7 @@ class ConversationState:
         if callback_class:
             self.callback: Optional[StateCallback] = callback_class(self.PRINT_PREFIX)
         else:
-            print(f"[red][bold]{self.PRINT_PREFIX} no callback found for state {self.get_hpath()}[/bold][/red]")
+            rprint(f"[red][bold]{self.PRINT_PREFIX} no callback found for state {self.get_hpath()}[/bold][/red]")
             self.callback: Optional[StateCallback] = None
 
 class ConversationStateMachine:
@@ -134,7 +135,7 @@ class ConversationStateMachine:
             return self.current_state
         else:
             error_message = f"{self.PRINT_PREFIX} invalid trigger '{trigger}' for state {self.current_state.get_hpath()}"
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise ConversationEdgeError(error_message)
 
     def initialize_conversation_states(self, state_data):
@@ -183,7 +184,7 @@ class ConversationStateMachine:
                 if source_state and dest_state:
                     source_state.add_transition(trigger, dest_state)
                 else:
-                    print(f"[red]{self.PRINT_PREFIX} Warning: Invalid transition - Source: {source_path}, Destination: {dest_path}[/red]")
+                    rprint(f"[red]{self.PRINT_PREFIX} Warning: Invalid transition - Source: {source_path}, Destination: {dest_path}[/red]")
 
     def visualize(self, filename: str) -> None:
         graph = pgv.AGraph(directed=True)
@@ -234,17 +235,17 @@ class ConversationStateMachine:
             graph.draw(os.path.join(output_dir, f'state_diagram_{filename}.png'))
         else:
             error_message = f"{self.PRINT_PREFIX} OUTPUT_DIR not set"
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise KeyError(error_message)
 
     def print_current_state(self):
-        print(f"{self.PRINT_PREFIX} self.current_state: [yellow]{self.current_state}[/yellow]")
-        print(f"{self.PRINT_PREFIX} self.current_state.get_hpath(): [yellow]{self.current_state.get_hpath()}[/yellow]")
+        dprint(f"{self.PRINT_PREFIX} self.current_state: [yellow]{self.current_state}[/yellow]")
+        dprint(f"{self.PRINT_PREFIX} self.current_state.get_hpath(): [yellow]{self.current_state.get_hpath()}[/yellow]")
 
     def print_state_hierarchy(self, state=None, level=0):
         if state == None:
             state = self.root_state
 
-        print(self.PRINT_PREFIX + "  " * (level+1) + "[yellow]" + state.get_hpath() + "[/yellow]")
+        dprint(self.PRINT_PREFIX + "  " * (level+1) + "[yellow]" + state.get_hpath() + "[/yellow]")
         for child in state.children:
             self.print_state_hierarchy(child, level + 1)

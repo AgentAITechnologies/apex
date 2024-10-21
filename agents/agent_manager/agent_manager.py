@@ -9,6 +9,7 @@ from typing import Type, Optional
 from typing_extensions import Self
 
 from rich import print as rprint
+from utils.console_io import debug_print as dprint
 
 from agents.agent import Agent
 from agents.state_management import ConversationStateMachine
@@ -17,7 +18,7 @@ from agents.tot.tot import ToT
 
 from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict
 from utils.llm import llm_turn
-from utils.console_io import debug_print as dprint
+from utils.console_io import ProgressIndicator
 
 from anthropic import Anthropic
 
@@ -90,9 +91,13 @@ class AgentManager():
             match self.csm.current_state.get_hpath():
 
                 case "RouteAction":
+                    PI = ProgressIndicator()
+
                     action = data['action']
 
                     dprint(f"{self.PRINT_PREFIX} Routing action: {action}")
+                    rprint(f"routing new action", end="")
+                    PI.start()
 
                     dprint(self.agents)
 
@@ -140,7 +145,10 @@ class AgentManager():
                     new_agent_info = xmlstr2dict(text, self.client)
                     dprint(f"{self.PRINT_PREFIX} new_agent_info:\n{new_agent_info}")
 
-                    rprint(f"{self.PRINT_PREFIX} Creating agent: {new_agent_info['name']}")
+                    PI.stop()
+                    rprint("[green]done[/green]")
+
+                    rprint(f"Creating agent: [bold]{new_agent_info['name']}[/bold]")
 
                     new_agent = ToT(client=self.client,
                                     name=new_agent_info['name'],
@@ -156,7 +164,9 @@ class AgentManager():
                 case "AssignAgent":
                     for agent in self.agents:
                         if agent.name == agent_selection['name']:
-                            rprint(f"{self.PRINT_PREFIX} Assigning agent: {agent.name}")
+                            PI.stop()
+
+                            rprint(f"[grey][italic] Assigning agent: [bold]{agent.name}[/bold][/italic][/grey]")
 
                             agent.add_task(action)
                             agent.run()

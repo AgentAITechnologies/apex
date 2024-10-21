@@ -5,7 +5,8 @@ import json
 import os
 import sounddevice as sd
 
-from rich import print
+from rich import print as rprint
+from utils.console_io import debug_print as dprint
 
 from agents.agent import Agent
 from agents.memory import Memory
@@ -39,13 +40,13 @@ class UI(Agent):
         UI_DIR = os.environ.get("UI_DIR")
         if not UI_DIR:
             error_message = f"{self.PRINT_PREFIX} UI_DIR not set"
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise KeyError(error_message)
 
         INPUT_DIR = os.environ.get("INPUT_DIR")
         if not INPUT_DIR:
             error_message = f"{self.PRINT_PREFIX} INPUT_DIR not set"
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise KeyError(error_message)
 
         state_file_path = os.path.join(UI_DIR, INPUT_DIR, "states.json")
@@ -53,14 +54,14 @@ class UI(Agent):
         try:
             with open(state_file_path) as file:
                 state_data = json.load(file)
-            print(f"{self.PRINT_PREFIX} loaded state_data")
+            dprint(f"{self.PRINT_PREFIX} loaded state_data")
         except FileNotFoundError:
             error_message = f"{self.PRINT_PREFIX} states.json not found at {state_file_path}"
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise
         except json.JSONDecodeError:
             error_message = f"{self.PRINT_PREFIX} Error decoding JSON in states.json"
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise
 
         transition_file_path = os.path.join(UI_DIR, INPUT_DIR, "transitions.json")
@@ -68,14 +69,14 @@ class UI(Agent):
         try:
             with open(transition_file_path) as file:
                 transition_data = json.load(file)
-            print(f"{self.PRINT_PREFIX} loaded transition_data")
+            dprint(f"{self.PRINT_PREFIX} loaded transition_data")
         except FileNotFoundError:
             error_message = f"{self.PRINT_PREFIX} transitions.json not found at {transition_file_path}"
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise
         except json.JSONDecodeError:
             error_message = f"{self.PRINT_PREFIX} Error decoding JSON in transitions.json"
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise
 
         self.csm = ConversationStateMachine(state_data=state_data, transition_data=transition_data, init_state_path='Start', prefix=self.PRINT_PREFIX, owner_class_name="UI")
@@ -87,10 +88,10 @@ class UI(Agent):
         self.parsed_response = None
     
     def run(self):
-        print(f"[bold][{FRIENDLY_COLOR}]Welcome to [italic]APEX[/italic][/{FRIENDLY_COLOR}][/bold]")
+        rprint(f"[bold][{FRIENDLY_COLOR}]Welcome to [italic]APEX[/italic][/{FRIENDLY_COLOR}][/bold]\n")
 
         while self.csm.current_state.get_hpath() != "Exit":
-            print(f"{self.PRINT_PREFIX} At: {self.csm.current_state.get_hpath()}")
+            dprint(f"{self.PRINT_PREFIX} At: {self.csm.current_state.get_hpath()}")
                 
             match self.csm.current_state.get_hpath():
 
@@ -109,8 +110,10 @@ class UI(Agent):
                     self.memory.store_llm_response("<output>" + text + "</output>")
 
                     parsed_response = xmlstr2dict(text, self.client)
-                    print(f"{self.PRINT_PREFIX} parsed_response:")
-                    print(parsed_response)
+                    dprint(f"{self.PRINT_PREFIX} parsed_response:")
+                    dprint(parsed_response)
+
+                    rprint("\n[white][bold]" + parsed_response["response"] + "[/bold][/white]\n")
 
                     if os.environ.get("USE_TTS") == "True":
                         tts(parsed_response["response"])
@@ -119,7 +122,7 @@ class UI(Agent):
                         action = parsed_response["action"]
 
                         if action == "REST":
-                            print(f"{self.PRINT_PREFIX} Exiting...")
+                            rprint(f"Exiting...")
                             sd.wait()
                             exit(0)
                         else:
@@ -127,10 +130,11 @@ class UI(Agent):
 
                 case "AssignAction":
                     if action:
-                        print(f"{self.PRINT_PREFIX} action: {action}")
+                        dprint(f"{self.PRINT_PREFIX} action: {action}")
+
                         self.agent_manager.ipc("RouteAction", {"action": action})
                         self.csm.transition("PrintUIMessage", locals)
                     else:
                         error_message = f"{self.PRINT_PREFIX} no action to assign"
-                        print(f"[red][bold]{error_message}[/bold][/red]")
+                        rprint(f"[red][bold]{error_message}[/bold][/red]")
                         raise UIError(error_message)

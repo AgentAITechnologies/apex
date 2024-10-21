@@ -30,6 +30,13 @@ class ProgressIndicator:
         self._thread: Optional[Thread] = None
         self._character: str = '.'
 
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
+        
     def start(self, character: str = '.') -> None:
         if self._running:
             return

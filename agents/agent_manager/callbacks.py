@@ -1,4 +1,4 @@
-from rich import print
+from utils.console_io import debug_print as dprint
 
 from utils.parsing import *
 
@@ -8,56 +8,56 @@ from agents.state_callback import StateCallback
 
 class root_Callback(StateCallback):
     def on_enter(self, csm, locals):
-        print(f"{self.PRINT_PREFIX} Entering root")
+        dprint(f"{self.PRINT_PREFIX} Entering root")
         # Perform actions when entering root
         pass
 
     def on_exit(self, csm, locals):
-        print(f"{self.PRINT_PREFIX} Exiting root")
+        dprint(f"{self.PRINT_PREFIX} Exiting root")
         # Perform actions when exiting root
         pass
 
 class AwaitIPC_Callback(StateCallback):
     def on_enter(self, csm, locals):
-        print(f"{self.PRINT_PREFIX} Entering AwaitIPC")
+        dprint(f"{self.PRINT_PREFIX} Entering AwaitIPC")
         # Perform actions when entering AwaitTask
         pass
 
     def on_exit(self, csm, locals):
-        print(f"{self.PRINT_PREFIX} Exiting AwaitIPC")
+        dprint(f"{self.PRINT_PREFIX} Exiting AwaitIPC")
         # Perform actions when exiting AwaitTask
         pass
 
 class RouteAction_Callback(StateCallback):
     def on_enter(self, csm, locals):
-        print(f"{self.PRINT_PREFIX} Entering RouteAction")
+        dprint(f"{self.PRINT_PREFIX} Entering RouteAction")
         # Perform actions when entering RouteAction
         pass
 
     def on_exit(self, csm, locals):
-        print(f"{self.PRINT_PREFIX} Exiting RouteAction")
+        dprint(f"{self.PRINT_PREFIX} Exiting RouteAction")
         # Perform actions when exiting RouteAction
         pass
 
 class CreateAgent_Callback(StateCallback):
     def on_enter(self, csm, locals):
-        print(f"{self.PRINT_PREFIX} Entering CreateAgent")
+        dprint(f"{self.PRINT_PREFIX} Entering CreateAgent")
         # Perform actions when entering CreateAgent 
         pass
 
     def on_exit(self, csm, locals):
-        print(f"{self.PRINT_PREFIX} Exiting CreateAgent")
+        dprint(f"{self.PRINT_PREFIX} Exiting CreateAgent")
         # Perform actions when exiting CreateAgent
         pass
 
 class AssignAgent_Callback(StateCallback):
     def on_enter(self, csm, locals):
-        print(f"{self.PRINT_PREFIX} Entering AssignAgent")
+        dprint(f"{self.PRINT_PREFIX} Entering AssignAgent")
         # Perform actions when entering AssignAgent
         pass
 
     def on_exit(self, csm, locals):
-        print(f"{self.PRINT_PREFIX} Exiting AssignAgent")
+        dprint(f"{self.PRINT_PREFIX} Exiting AssignAgent")
         # Perform actions when exiting AssignAgent
         pass
 

@@ -23,7 +23,7 @@ from utils.context import get_platform_details
 from utils.custom_exceptions import ExecError
 from utils.enums import Role
 from utils.custom_types import FeedbackDict, PromptsDict
-from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, remove_escape_key
+from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, remove_escape_key, format_nested_dict
 from utils.llm import llm_turns
 from utils.files import create_incrementing_directory
 from utils.constants import CLIENT_VERSION, FRIENDLY_COLOR, get_env_constants
@@ -102,31 +102,27 @@ class ToT(Agent):
             raise KeyboardInterrupt
 
     def run(self) -> None:
-        PI = ProgressIndicator()
-
         self.trace = ""
         self.interrupted = False
 
         try:
             self.current_task: Optional[str] = xml2xmlstr(dict2xml(self.tasks[-1]))
 
-            rprint(f"{self.PRINT_PREFIX}[yellow][bold] Press the escape key at any time to stop the agent[/bold][/yellow]")
+            rprint(f"[yellow][bold]Press the escape key at any time to stop the agent[/bold][/yellow]")
 
             dprint(f"{self.PRINT_PREFIX} task:\n{self.current_task}")
 
-            rprint(f"{self.PRINT_PREFIX} getting remote experiences")
-
-            PI.start()
-            REMOTE_EXPERIENCES = get_remote_experiences(target_vector_name="task",
-                                                        target_vector_query=self.current_task,
-                                                        limit=REMOTE_EXAMPLE_COUNT)
-            PI.stop()
+            rprint(f"getting remote experiences", end="")
+            with ProgressIndicator() as PI:
+                REMOTE_EXPERIENCES = get_remote_experiences(target_vector_name="task",
+                                                            target_vector_query=self.current_task,
+                                                            limit=REMOTE_EXAMPLE_COUNT)
             
             # TODO: log this as an error depending on telemetry level
             if REMOTE_EXPERIENCES:
-                rprint(f"{self.PRINT_PREFIX} [green]done[/green]")
+                rprint(f"[green]done[/green]")
             else:
-                rprint(f"{self.PRINT_PREFIX} [red][bold]No remote examples found for the current task... this is suspicious.[/bold][/red]")
+                rprint(f"[red][bold]No remote examples found for the current task... this is suspicious.[/bold][/red]")
 
             self.log_dir = create_incrementing_directory(self.output_dir, f"{self.name}_")
 
@@ -168,15 +164,14 @@ class ToT(Agent):
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
                         # re-implement set() optimizaiton after verifying it doesn't interfere with shuffling logic
-                        rprint(f"{self.PRINT_PREFIX} planning", end="")
-                        PI.start()                   
-                        plan_candidates: list[str] = llm_turns(client=self.client,
-                                                            prompts={"system": system_prompt,
-                                                                     "messages": messages},
-                                                            stop_sequences=["</plan>"],
-                                                            temperature=TEMP,
-                                                            n=PLAN_COUNT)
-                        PI.stop()
+                        rprint(f"planning", end="")
+                        with ProgressIndicator() as PI:               
+                            plan_candidates: list[str] = llm_turns(client=self.client,
+                                                                    prompts={"system": system_prompt,
+                                                                             "messages": messages},
+                                                                    stop_sequences=["</plan>"],
+                                                                    temperature=TEMP,
+                                                                    n=PLAN_COUNT)
                         rprint(f"[green]done[/green]")
                         
                         self.unified_step['plan_candidates'] = plan_candidates
@@ -212,14 +207,13 @@ class ToT(Agent):
                                             "messages": messages})
                             plan_index_maps.append(shuffled_indices)
 
-                        rprint(f"{self.PRINT_PREFIX} voting", end="")
-                        PI.start()
-                        plan_votes = llm_turns(client=self.client,
-                                                prompts=prompts,
-                                                stop_sequences=["</evaluation>"],
-                                                temperature=TEMP,
-                                                n=None)
-                        PI.stop()
+                        rprint(f"voting", end="")
+                        with ProgressIndicator() as PI:
+                            plan_votes = llm_turns(client=self.client,
+                                                    prompts=prompts,
+                                                    stop_sequences=["</evaluation>"],
+                                                    temperature=TEMP,
+                                                    n=None)                
                         rprint(f"[green]done[/green]")
 
                         self.csm.transition("SumPlanVotes", locals())
@@ -252,15 +246,14 @@ class ToT(Agent):
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
                         # re-implement set() optimizaiton after verifying it doesn't interfere with shuffling logic
-                        rprint(f"{self.PRINT_PREFIX} proposing implementations", end="")
-                        PI.start()
-                        raw_proposals: list[str] = llm_turns(client=self.client,
+                        rprint(f"proposing implementations", end="")
+                        with ProgressIndicator() as PI:
+                            raw_proposals: list[str] = llm_turns(client=self.client,
                                                              prompts={"system": system_prompt,
                                                                       "messages": messages},
                                                              stop_sequences=["```"],
                                                              temperature=TEMP,
                                                              n=PROPOSAL_COUNT)
-                        PI.stop()
                         rprint(f"[green]done[/green]")
                             
                         proposal_candidates = ["```python" + raw_proposal + "```" for raw_proposal in raw_proposals]
@@ -298,14 +291,13 @@ class ToT(Agent):
                                             "messages": messages})
                             proposal_index_maps.append(shuffled_indices)
 
-                        rprint(f"{self.PRINT_PREFIX} voting on implementations", end="")
-                        PI.start()
-                        proposal_votes = llm_turns(client=self.client,
+                        rprint(f"voting on implementations", end="")
+                        with ProgressIndicator() as PI:
+                            proposal_votes = llm_turns(client=self.client,
                                                     prompts=prompts,
                                                     stop_sequences=["</evaluation>"],
                                                     temperature=TEMP,
                                                     n=None)
-                        PI.stop()
                         rprint(f"[green]done[/green]")
 
                         self.csm.transition("SumProposeVotes", locals())
@@ -334,10 +326,10 @@ class ToT(Agent):
                         
                         language, code = parsed_code
 
-                        rprint(f"{self.PRINT_PREFIX} Proposed code to execute:")
+                        rprint(f"Proposed code to execute:\n")
                         rprint(code.strip())
 
-                        execute_code = get_yes_no_input(f"{self.PRINT_PREFIX} Do you want to execute this code?")
+                        execute_code = get_yes_no_input(f"\nDo you want to execute this code?")
 
                         if execute_code:
                             self.code_executor.write_code_step_file(code, self.step_num)
@@ -371,16 +363,15 @@ class ToT(Agent):
 
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
-                        rprint(f"{self.PRINT_PREFIX} planning a fix", end="")
-                        PI.start()                   
-                        plan_candidates: list[str] = llm_turns(client=self.client,
+                        rprint(f"planning a fix", end="")
+                        with ProgressIndicator() as PI:                   
+                            plan_candidates: list[str] = llm_turns(client=self.client,
                                                             prompts={"system": system_prompt,
                                                                     "messages": messages},
                                                             stop_sequences=["</plan>"],
                                                             temperature=TEMP,
                                                             n=PLAN_COUNT)
-                        PI.stop()
-                        rprint(f"{self.PRINT_PREFIX} [green]done[/green]", end="")
+                        rprint(f"[green]done[/green]")
                         
                         self.unified_step['plan_candidates'] = plan_candidates
 
@@ -404,16 +395,15 @@ class ToT(Agent):
 
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
                         
-                        rprint(f"{self.PRINT_PREFIX} voting on completion status", end="")
-                        PI.start()
-                        exec_votes: list[str] = llm_turns(client=self.client,
+                        rprint(f"voting on completion status", end="")
+                        with ProgressIndicator() as PI:
+                            exec_votes: list[str] = llm_turns(client=self.client,
                                                           prompts={"system": system_prompt,
                                                                    "messages": messages},
                                                           stop_sequences=["</evaluation>"],
                                                           temperature=TEMP,
                                                           n=VOTER_COUNT)
-                        PI.stop()
-                        rprint(f"{self.PRINT_PREFIX} [green]done[/green]", end="")
+                        rprint(f"[green]done[/green]")
                         
                         self.unified_step['exec_vote_strs'] = exec_votes
 
@@ -453,7 +443,7 @@ class ToT(Agent):
             self.trace = ""
             self.current_task = None
 
-            rprint(f"{self.PRINT_PREFIX} [green]task complete[/green]")
+            rprint(f"\n[green]task complete[/green]\n")
         else:
             error_message = f"{self.PRINT_PREFIX} Fatal: no task to finalize! Was run() invoked without assigning a task?"
             rprint(f"[red][bold]{error_message}[/bold][/red]")
@@ -505,36 +495,40 @@ class ToT(Agent):
 
         PROVIDE_FEEDBACK = os.environ.get("PROVIDE_FEEDBACK") == "True"
         if PROVIDE_FEEDBACK:
-            with open(LOGFILE_PATH, 'r') as logfile:
-                logfile_text = logfile.read()
 
-            raw_log: dict = xmlstr2dict(logfile_text, self.client)
+            rprint(f"\nsending feedback to experience platform", end="")
+            with ProgressIndicator() as PI:
 
-            if "details" in raw_log:
-                details_str = f"<details>{raw_log['details']}</details>"
-            else:
-                details_str = ""
+                with open(LOGFILE_PATH, 'r') as logfile:
+                    logfile_text = logfile.read()
 
-            log = {
-                "agent_name": self.name,
-                "task": f"<task><description>{raw_log['task']}</description>{details_str}</task>",
-                "trace": self.trace,
-                "success": feedback['success'],
-                "feedback": feedback['details'],
-                "elaboration": feedback['elaboration'],
-                "client_version": CLIENT_VERSION,
-                "platform_details": get_platform_details(),
-                "os_family": platform.system()
-            }
+                raw_log: dict = xmlstr2dict(logfile_text, self.client)
 
-            dprint(log)
+                if "details" in raw_log:
+                    details_str = f"<details>{raw_log['details']}</details>"
+                else:
+                    details_str = ""
 
-            response = stage_experience(log)
+                log = {
+                    "agent_name": self.name,
+                    "task": f"<task><description>{raw_log['task']}</description>{details_str}</task>",
+                    "trace": self.trace,
+                    "success": feedback['success'],
+                    "feedback": feedback['details'],
+                    "elaboration": feedback['elaboration'],
+                    "client_version": CLIENT_VERSION,
+                    "platform_details": get_platform_details(),
+                    "os_family": platform.system()
+                }
 
-            if response:
-                dprint(f"{self.PRINT_PREFIX} response: {response.text}")
-            else:
-                rprint(f"[red][bold]{self.PRINT_PREFIX} no response from experience submission![/bold][/red]")
+                dprint(log)
+
+                response = stage_experience(log)
+
+                if response:
+                    dprint(f"{self.PRINT_PREFIX} response: {response.text}")
+                else:
+                    rprint(f"[red][bold]{self.PRINT_PREFIX} no response from experience submission![/bold][/red]")
         else:
             rprint(f"[yellow][bold]{self.PRINT_PREFIX} PROVIDE_FEEDBACK not set to \"True\" in .env - not sending feedback[/bold][/yellow]")
 
@@ -544,7 +538,9 @@ class ToT(Agent):
 
     # TODO: Summarize steps for easy human evaluation and pretty print the task
     def get_feedback(self) -> Optional[FeedbackDict]:
-        feedback_intro = f"\nThe task:\n{self.current_task}\n"
+        feedback_intro = f"\n\nThe task:\n[white][bold]{format_nested_dict(xmlstr2dict(xml_string=self.current_task, client=self.client, depth=6), indent=4)}[/bold][/white]\n\n"
+        
+        rprint()
         
         if not self.interrupted:
             feedback_intro += "is believed to be complete according to your specifications, however this determination may have been in error.\n"
@@ -553,9 +549,9 @@ class ToT(Agent):
 
         feedback_intro += f"""
 [{FRIENDLY_COLOR}][bold]Thank you again for providing feedback about the performance of this program.
-Your contributions make this tool more effective for everyone.
-[italic]If you do not wish to be prompted for feedback in the future, simply disable this feature in your .env file.
-You may also type 'c' at this prompt to not provide feedback for this particular task.[/italic][/{FRIENDLY_COLOR}]
+Your contributions make this tool more effective for everyone.[/bold][/{FRIENDLY_COLOR}]
+[{FRIENDLY_COLOR}]If you do not wish to be prompted for feedback in the future, simply disable this feature in your .env file.
+[italic]You may also type 'c' at this prompt to not provide feedback for this particular task.[/italic][/{FRIENDLY_COLOR}]
 """
         rprint(feedback_intro)
         
@@ -571,10 +567,10 @@ You may also type 'c' at this prompt to not provide feedback for this particular
             return None
 
         if success:
-            details_prompt = """How could future completions of this task be better?\n(e.g., more efficient, having fewer side effects, or being more closely aligned with your intentions)?
+            details_prompt = """\nHow could future completions of this task be better?\n(e.g., more efficient, having fewer side effects, or being more closely aligned with your intentions)?
 If you believe it was optimal, please indicate this."""
         else:
-            details_prompt = "How would you characterize this failure? Please be as specific as possible to help us be more helpful to you in the future."
+            details_prompt = "\nHow would you characterize this failure? Please be as specific as possible to help us be more helpful to you in the future."
 
         rprint(details_prompt, end=" > ")
 
@@ -612,7 +608,7 @@ If you believe it was optimal, please indicate this."""
         
         llm_response = llm_turns(self.client, {'system': system_prompt, 'messages': messages}, ["</reflection>"], TEMP, 1)[0]
 
-        correct_interpretation = get_yes_no_input(f"""\n[{FRIENDLY_COLOR}]Before your feedback is submitted, let's make sure the LLM understands your intentions.
+        correct_interpretation = get_yes_no_input(f"""\n[{FRIENDLY_COLOR}][bold]Before your feedback is submitted, let's make sure the LLM understands your intentions.[/bold]
 Here's how it interprets your feedback on the last run:[/{FRIENDLY_COLOR}]
 {llm_response}
 [bold]Is this an accurate reflection of the meaning you intended?[/bold]""")
