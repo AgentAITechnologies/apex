@@ -7,19 +7,18 @@ import os
 import dotenv
 
 import requests
-from rich import print 
+from rich import print as rprint
 
 import traceback
 
+from utils.console_io import debug_print as dprint
 from utils.oobe import setup_environment_variables, template2env
 
 template2env()
-print(f"{PRINT_PREFIX} dotenv.load_dotenv(override=True): {dotenv.load_dotenv(override=True)}")
+dprint(f"{PRINT_PREFIX} dotenv.load_dotenv(override=True): {dotenv.load_dotenv(override=True)}", debug_override=True)
 
 from utils.parsing import get_yes_no_input
 from utils.constants import *
-
-on_load_dotenv()
 
 from agents.agent_manager.agent_manager import AgentManager
 from agents.ui.ui import UI
@@ -29,16 +28,17 @@ def main():
     setup_environment_variables(REQUIRED_SETUP_KEYS)
     
     dotenv.load_dotenv()
+    get_env_constants()
 
-    print()    
+    rprint()    
 
     try:
         TERM_WIDTH = os.get_terminal_size().columns
         os.environ["TERM_WIDTH"] = str(TERM_WIDTH)
-        print(f"{PRINT_PREFIX} TERM_WIDTH: {TERM_WIDTH}")
+        dprint(f"{PRINT_PREFIX} TERM_WIDTH: {TERM_WIDTH}")
     except OSError:
         TERM_WIDTH = int(os.environ.get("TERM_WIDTH", "160"))
-        print(f"{PRINT_PREFIX} TERM_WIDTH (headless): {TERM_WIDTH}")
+        dprint(f"{PRINT_PREFIX} TERM_WIDTH (headless): {TERM_WIDTH}")
 
     client = anthropic.Anthropic(
         api_key=os.environ.get("ANTHROPIC_API_KEY"),
@@ -96,7 +96,7 @@ if __name__ == "__main__":
 
 """
                     else:
-                        print(f"[yellow][bold]{PRINT_PREFIX} CRASH_INFO_LEVEL set to 0 in your .env file - not sending any crash info[/yellow][bold]")
+                        rprint(f"[yellow][bold]{PRINT_PREFIX} CRASH_INFO_LEVEL set to 0 in your .env file - not sending any crash info[/yellow][bold]")
                         
                     user_approve = get_yes_no_input(user_message)
 
@@ -104,11 +104,11 @@ if __name__ == "__main__":
                         response = requests.post(AGENTAI_API_URL+"/client_error", data=json.dumps(error), headers={'Authorization': AGENTAI_API_KEY,
                                                                                                                    'Content-Type': 'application/json'})
                     
-                        print(f"{PRINT_PREFIX} {response}")
+                        dprint(f"{PRINT_PREFIX} {response}")
 
                         exit(2)
                     else:
-                        print("The details of this crash will not be shared.")
+                        rprint("The details of this crash will not be shared.")
 
                         response = requests.post(AGENTAI_API_URL+"/client_error", data=json.dumps({"type": "USER_PRIVATE"}), headers={'Authorization': AGENTAI_API_KEY,
                                                                                                                                       'Content-Type': 'application/json'})
@@ -116,8 +116,8 @@ if __name__ == "__main__":
                         exit(1)
                 else:
                     # TODO: Provide reporting tool for errors that may take place befor api key is aquired
-                    print(f"[red][bold]{PRINT_PREFIX} AGENTAI_API_KEY not set in .env - unable to log client error:\n[/bold][/red]{traceback.format_exc()}")
+                    rprint(f"[red][bold]{PRINT_PREFIX} AGENTAI_API_KEY not set in .env - unable to log client error:\n[/bold][/red]{traceback.format_exc()}")
             else:
-                print(f"[red][bold]{PRINT_PREFIX} AGENTAI_API_URL not set in .env - unable to log client error[/red][/bold]")
+                rprint(f"[red][bold]{PRINT_PREFIX} AGENTAI_API_URL not set in .env - unable to log client error[/red][/bold]")
         else:
-            print(f"[yellow][bold]{PRINT_PREFIX} CRASH_INFO_LEVEL not set or has invalid value ({os.environ.get('CRASH_INFO_LEVEL')}) - not sending any crash info[/yellow][/bold]")
+            rprint(f"[yellow][bold]{PRINT_PREFIX} CRASH_INFO_LEVEL not set or has invalid value ({os.environ.get('CRASH_INFO_LEVEL')}) - not sending any crash info[/yellow][/bold]")
