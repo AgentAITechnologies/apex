@@ -436,7 +436,7 @@ class ToT(Agent):
                 if feedback:
                     self.log_feedback(feedback)
                 else:
-                    rprint(f"[yellow][bold]{self.PRINT_PREFIX} No feedback to log[/bold][/yellow]")
+                    dprint(f"[yellow][bold]{self.PRINT_PREFIX} No feedback to log[/bold][/yellow]")
             else:
                 rprint(f"[yellow][bold]{self.PRINT_PREFIX} PROVIDE_FEEDBACK not set to \"True\" in .env - not collecting performance feedback[/bold][/yellow]")
 
