@@ -5,10 +5,12 @@ from dotenv import load_dotenv, set_key
 
 from playwright.sync_api import sync_playwright
 
-from rich import print
+from rich import print as rprint
+from utils.console_io import debug_print as dprint
 
-from utils.custom_exceptions import APIKeyError
+from utils.custom_exceptions import APIKeyError, AuthError
 from utils.parsing import get_yes_no_input
+from utils.constants import get_env_constants
 
 
 PRINT_PREFIX = "[bold][OOBE][/bold]"
@@ -26,7 +28,7 @@ def get_token():
     needs_api_access = PROVIDE_FEEDBACK or (isinstance(CRASH_INFO_LEVEL, int) and CRASH_INFO_LEVEL > 0)
 
     if not AGENTAI_API_URL and needs_api_access:
-        print(f"[red][bold]{PRINT_PREFIX} AGENTAI_API_URL not set but needed due to CRASH_INFO_LEVEL > 0 or PROVIDE_FEEDBACK != True[/bold][/red]")
+        rprint(f"[red][bold]{PRINT_PREFIX} AGENTAI_API_URL not set but needed due to CRASH_INFO_LEVEL > 0 or PROVIDE_FEEDBACK != True[/bold][/red]")
 
         raise Exception(f"{PRINT_PREFIX} AGENTAI_API_URL not set but needed due to CRASH_INFO_LEVEL > 0 or PROVIDE_FEEDBACK != True")
     else:
@@ -38,10 +40,10 @@ def get_token():
             context = browser.new_context()
             page = context.new_page()
             
-            print("Opening Discord authorization page...")
+            dprint("Opening Discord authorization page...")
             page.goto(AUTH_URL)
             
-            print("Waiting for authorization and redirect...")
+            dprint("Waiting for authorization and redirect...")
             with page.expect_response(lambda response: REDIRECT_URL in response.url, timeout=AUTH_TIMEOUT_MS) as response_info:
                 response = response_info.value
             
@@ -52,18 +54,19 @@ def get_token():
                 json_data = json.loads(content)
                 api_token = json_data.get('api_token')
                 if api_token:
-                    print("Successfully retrieved API token.")
+                    dprint("Successfully retrieved API token.")
                     return api_token
                 else:
-                    print("API token not found in the response.")
-                    return None
+                    error_message = "[red][bold]Failed to parse JSON response from API."
+                    rprint(f"[red][bold]{PRINT_PREFIX} {error_message}[/bold][/red]")
+                    raise AuthError(error_message)
             except json.JSONDecodeError as e:
                 error_message = "Failed to parse JSON response from API."
-                print(f"[red][bold]{PRINT_PREFIX} {error_message}[/bold][/red]")
+                rprint(f"[red][bold]{PRINT_PREFIX} {error_message}[/bold][/red]")
                 raise json.JSONDecodeError(msg=error_message, doc=e.doc, pos=e.pos)
             
 def eula_decline():
-    print("[yellow][bold]Please accept the End User License Agreement to launch the tool[/bold][/yellow]")
+    rprint("[yellow][bold]Please accept the End User License Agreement to launch the tool[/bold][/yellow]")
     exit(0)
 
 def template2env(template_file=None, env_file=None):
@@ -76,34 +79,35 @@ def template2env(template_file=None, env_file=None):
         try:
             with open(template_file, 'r') as source, open(env_file, 'w') as destination:
                 destination.write(source.read())
-            print(f"{PRINT_PREFIX} Copied {template_file} to {env_file}")
+            dprint(f"{PRINT_PREFIX} Copied {template_file} to {env_file}", force_debug_mode=False)
         except IOError as e:
-            print(f"[red][bold]{PRINT_PREFIX} Error copying file: {e}[/red][/bold]")
+            rprint(f"[red][bold]{PRINT_PREFIX} Error copying file: {e}[/red][/bold]")
     elif os.path.exists(env_file):
-        print(f"{PRINT_PREFIX} {env_file} already exists. No action taken.")
+        dprint(f"{PRINT_PREFIX} {env_file} already exists. No action taken.", force_debug_mode=False)
     else:
-        print(f"[yellow][bold]{PRINT_PREFIX} {template_file} not found. No action taken.[/yellow][/bold]")
+        dprint(f"[yellow][bold]{PRINT_PREFIX} {template_file} not found. No action taken.[/yellow][/bold]", force_debug_mode=False)
 
 def setup_environment_variables(required_keys, env_file='.env'):
     load_dotenv()
 
-    from utils.constants import USE_ANTHROPIC
+    USE_ANTHROPIC = get_env_constants()['USE_ANTHROPIC']
+
     if USE_ANTHROPIC:
         if os.getenv('ANTHROPIC_API_KEY') == "YOUR_API_KEY_HERE":
-            print(f"{PRINT_PREFIX} Your Anthropic API key is not set.")
-            print(f"{PRINT_PREFIX} Please enter your Anthropic API key:")
+            rprint(f"[yellow]{PRINT_PREFIX} Your Anthropic API key is not set.[/yellow]")
+            rprint(f"[yellow]{PRINT_PREFIX} Please enter your Anthropic API key:[/yellow]")
             new_api_key = input().strip()
             
             set_key(env_file, 'ANTHROPIC_API_KEY', new_api_key)
             
-            print(f"{PRINT_PREFIX} API key has been updated in the .env file.")
+            rprint(f"[green]{PRINT_PREFIX} API key has been updated in the .env file.[/green]")
             
             load_dotenv(override=True)
         else:
-            print(f"{PRINT_PREFIX} Anthropic API key is already set.")
+            dprint(f"{PRINT_PREFIX} Anthropic API key is already set.")
 
     if not os.path.exists(env_file):
-        print(f"[red][bold]{PRINT_PREFIX} Cound't find env file '{env_file}'![/bold][red]")
+        rprint(f"[red][bold]{PRINT_PREFIX} Cound't find env file '{env_file}'![/bold][red]")
         raise FileNotFoundError(f"{PRINT_PREFIX} Cound't find .env!")
     else:
         for key in required_keys:
@@ -118,11 +122,11 @@ def setup_environment_variables(required_keys, env_file='.env'):
                         value = str(value)
 
                     case "NICKNAME":
-                        print("[italic]How should I refer to you? > [/italic]", end='')
+                        rprint("[italic]How should I refer to you? > [/italic]", end='')
                         value = input().strip()
 
                     case "PROVIDE_FEEDBACK":
-                        print("""
+                        rprint("""
 [deep_sky_blue1][bold]Your feedback on the performance of this virtual assistant is instrumental in advancing its capabilities for all of its users.[/bold]
 By sharing your insights, you're directly shaping the future of open conversational AI technology.[/deep_sky_blue1]
                               
@@ -132,8 +136,8 @@ Would you like to share performance feedback?
                         value = str(get_yes_no_input())
 
                     case "CRASH_INFO_LEVEL":
-                        print("""
-[bold]Crash telemetry is criticial to the development of a seamless user experience.[/bold]
+                        rprint("""
+[deep_sky_blue1][bold]Crash telemetry is criticial to the development of a seamless user experience.[/bold][/deep_sky_blue1]
                               
 Please select your level of crash telemetry:
 0. No telemetry
@@ -150,17 +154,17 @@ Please select your level of crash telemetry:
                         value = get_token()
                         if not value:
                             error_message = "Failed to obtain AgentAI API key"
-                            print(f"[red][bold]{PRINT_PREFIX} {error_message}[/bold][/red]")
+                            rprint(f"[red][bold]{PRINT_PREFIX} {error_message}[/bold][/red]")
                             raise APIKeyError(error_message)
                         
                     case _:
                         error_message = "Unhandled OOBE environment variable setting requirement in REQUIRED_SETUP_KEYS"
-                        print(f"[red][bold]{PRINT_PREFIX} {error_message}[/bold][/red]")
+                        rprint(f"[red][bold]{PRINT_PREFIX} {error_message}[/bold][/red]")
                         raise ValueError(error_message)
                 
                 set_key(env_file, key, value)
                 os.environ[key] = value
 
-                print(f"{PRINT_PREFIX} Set {key} = \"{value}\" in {env_file}")
+                dprint(f"{PRINT_PREFIX} Set {key} = \"{value}\" in {env_file}")
 
-        print(f"{PRINT_PREFIX} Environment variables have been set up successfully.")
+        dprint(f"{PRINT_PREFIX} Environment variables have been set up successfully.")

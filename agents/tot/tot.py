@@ -26,7 +26,8 @@ from utils.custom_types import FeedbackDict, PromptsDict
 from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, remove_escape_key
 from utils.llm import llm_turns
 from utils.files import create_incrementing_directory
-from utils.constants import CLIENT_VERSION, FRIENDLY_COLOR, LOCAL_LOGS
+from utils.constants import CLIENT_VERSION, FRIENDLY_COLOR, get_env_constants
+from utils.console_io import ProgressIndicator, debug_print as dprint
 
 from anthropic import Anthropic
 
@@ -61,26 +62,26 @@ class ToT(Agent):
         tot_dir, input_dir, output_dir = os.environ.get("TOT_DIR"), os.environ.get("INPUT_DIR"), os.environ.get("OUTPUT_DIR")
         if tot_dir is None:
             error_message = f"{self.PRINT_PREFIX} TOT_DIR environment variable not set (check .env)"
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise KeyError(error_message)
         if input_dir is None:
             error_message = f"{self.PRINT_PREFIX} INPUT_DIR environment variable not set (check .env)"
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise KeyError(error_message)
         if output_dir is None:
             error_message = f"{self.PRINT_PREFIX} OUTPUT_DIR environment variable not set (check .env)"
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise KeyError(error_message)
 
         self.output_dir = os.path.join(tot_dir, output_dir)
 
         with open(os.path.join(tot_dir, input_dir, "states.json")) as file:
             state_data = json.load(file)
-            rprint(f"{self.PRINT_PREFIX} loaded state_data")
+            dprint(f"{self.PRINT_PREFIX} loaded state_data")
 
         with open(os.path.join(tot_dir, input_dir, "transitions.json")) as file:
             transition_data = json.load(file)
-            rprint(f"{self.PRINT_PREFIX} loaded transition_data")
+            dprint(f"{self.PRINT_PREFIX} loaded transition_data")
 
         self.csm = ConversationStateMachine(state_data=state_data, transition_data=transition_data, init_state_path="Plan", prefix=self.PRINT_PREFIX, owner_class_name="ToT")
 
@@ -101,6 +102,8 @@ class ToT(Agent):
             raise KeyboardInterrupt
 
     def run(self) -> None:
+        PI = ProgressIndicator()
+
         self.trace = ""
         self.interrupted = False
 
@@ -109,19 +112,21 @@ class ToT(Agent):
 
             rprint(f"{self.PRINT_PREFIX}[yellow][bold] Press the escape key at any time to stop the agent[/bold][/yellow]")
 
-            rprint(f"{self.PRINT_PREFIX} task:\n{self.current_task}")
+            dprint(f"{self.PRINT_PREFIX} task:\n{self.current_task}")
 
-            rprint(f"{self.PRINT_PREFIX} getting remote experiences...")
+            rprint(f"{self.PRINT_PREFIX} getting remote experiences")
 
+            PI.start()
             REMOTE_EXPERIENCES = get_remote_experiences(target_vector_name="task",
                                                         target_vector_query=self.current_task,
                                                         limit=REMOTE_EXAMPLE_COUNT)
+            PI.stop()
             
             # TODO: log this as an error depending on telemetry level
             if REMOTE_EXPERIENCES:
-                rprint(f"{self.PRINT_PREFIX} done")
+                rprint(f"{self.PRINT_PREFIX} [green]done[/green]")
             else:
-                rprint(f"{self.PRINT_PREFIX}[red][bold] No remote examples found for the current task... this is suspicious.[/bold][/red]")
+                rprint(f"{self.PRINT_PREFIX} [red][bold]No remote examples found for the current task... this is suspicious.[/bold][/red]")
 
             self.log_dir = create_incrementing_directory(self.output_dir, f"{self.name}_")
 
@@ -162,13 +167,17 @@ class ToT(Agent):
 
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
-                        # re-implement set() optimizaiton after verifying it doesn't interfere with shuffling logic                     
+                        # re-implement set() optimizaiton after verifying it doesn't interfere with shuffling logic
+                        rprint(f"{self.PRINT_PREFIX} planning", end="")
+                        PI.start()                   
                         plan_candidates: list[str] = llm_turns(client=self.client,
                                                             prompts={"system": system_prompt,
                                                                      "messages": messages},
                                                             stop_sequences=["</plan>"],
                                                             temperature=TEMP,
                                                             n=PLAN_COUNT)
+                        PI.stop()
+                        rprint(f"[green]done[/green]")
                         
                         self.unified_step['plan_candidates'] = plan_candidates
 
@@ -178,7 +187,6 @@ class ToT(Agent):
                             self.unified_step['best_plan'] = next(iter(self.unified_step['plan_candidates']))
                             self.csm.transition("Propose", locals())
 
-                    # TODO: Parallelize
                     case "PlanVote":
                         system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
                                                                                    "task": self.current_task})
@@ -204,11 +212,15 @@ class ToT(Agent):
                                             "messages": messages})
                             plan_index_maps.append(shuffled_indices)
 
+                        rprint(f"{self.PRINT_PREFIX} voting", end="")
+                        PI.start()
                         plan_votes = llm_turns(client=self.client,
                                                 prompts=prompts,
                                                 stop_sequences=["</evaluation>"],
                                                 temperature=TEMP,
                                                 n=None)
+                        PI.stop()
+                        rprint(f"[green]done[/green]")
 
                         self.csm.transition("SumPlanVotes", locals())
 
@@ -240,12 +252,16 @@ class ToT(Agent):
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
                         # re-implement set() optimizaiton after verifying it doesn't interfere with shuffling logic
+                        rprint(f"{self.PRINT_PREFIX} proposing implementations", end="")
+                        PI.start()
                         raw_proposals: list[str] = llm_turns(client=self.client,
                                                              prompts={"system": system_prompt,
                                                                       "messages": messages},
                                                              stop_sequences=["```"],
                                                              temperature=TEMP,
                                                              n=PROPOSAL_COUNT)
+                        PI.stop()
+                        rprint(f"[green]done[/green]")
                             
                         proposal_candidates = ["```python" + raw_proposal + "```" for raw_proposal in raw_proposals]
                         
@@ -255,7 +271,6 @@ class ToT(Agent):
                             self.unified_step['best_proposition'] = next(iter(proposal_candidates))
                             self.csm.transition("Exec", locals())
 
-                    # TODO: Parallelize
                     case "ProposeVote":
                         system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
                                                                                    "task": self.current_task})
@@ -283,11 +298,15 @@ class ToT(Agent):
                                             "messages": messages})
                             proposal_index_maps.append(shuffled_indices)
 
+                        rprint(f"{self.PRINT_PREFIX} voting on implementations", end="")
+                        PI.start()
                         proposal_votes = llm_turns(client=self.client,
                                                     prompts=prompts,
                                                     stop_sequences=["</evaluation>"],
                                                     temperature=TEMP,
                                                     n=None)
+                        PI.stop()
+                        rprint(f"[green]done[/green]")
 
                         self.csm.transition("SumProposeVotes", locals())
 
@@ -315,20 +334,27 @@ class ToT(Agent):
                         
                         language, code = parsed_code
 
-                        rprint(f"{self.PRINT_PREFIX} executing code:")
-                        print(code.strip())
+                        rprint(f"{self.PRINT_PREFIX} Proposed code to execute:")
+                        rprint(code.strip())
 
-                        self.code_executor.write_code_step_file(code, self.step_num)
+                        execute_code = get_yes_no_input(f"{self.PRINT_PREFIX} Do you want to execute this code?")
 
-                        stdout, stderr = self.code_executor.execute_code_step(self.step_num)
+                        if execute_code:
+                            self.code_executor.write_code_step_file(code, self.step_num)
 
-                        rprint(f"{self.PRINT_PREFIX} stdout:")
-                        print(stdout, end='')
-                        rprint(f"{self.PRINT_PREFIX} stderr:")
-                        print(stderr, end='')
+                            stdout, stderr = self.code_executor.execute_code_step(self.step_num)
 
-                        self.unified_step['output'] = stdout
-                        self.unified_step['error'] = stderr
+                            dprint(f"{self.PRINT_PREFIX} stdout:")
+                            dprint(stdout)
+                            dprint(f"{self.PRINT_PREFIX} stderr:")
+                            dprint(stderr)
+
+                            self.unified_step['output'] = stdout
+                            self.unified_step['error'] = stderr
+                        else:
+                            rprint(f"{self.PRINT_PREFIX} Code execution skipped.")
+                            self.unified_step['output'] = "Code execution skipped by user."
+                            self.unified_step['error'] = ""
 
                         self.csm.transition("ExecVote", locals())
 
@@ -344,13 +370,17 @@ class ToT(Agent):
                         assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
 
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
-                                                    
+
+                        rprint(f"{self.PRINT_PREFIX} planning a fix", end="")
+                        PI.start()                   
                         plan_candidates: list[str] = llm_turns(client=self.client,
                                                             prompts={"system": system_prompt,
                                                                     "messages": messages},
                                                             stop_sequences=["</plan>"],
                                                             temperature=TEMP,
                                                             n=PLAN_COUNT)
+                        PI.stop()
+                        rprint(f"{self.PRINT_PREFIX} [green]done[/green]", end="")
                         
                         self.unified_step['plan_candidates'] = plan_candidates
 
@@ -374,12 +404,16 @@ class ToT(Agent):
 
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
                         
+                        rprint(f"{self.PRINT_PREFIX} voting on completion status", end="")
+                        PI.start()
                         exec_votes: list[str] = llm_turns(client=self.client,
                                                           prompts={"system": system_prompt,
                                                                    "messages": messages},
                                                           stop_sequences=["</evaluation>"],
                                                           temperature=TEMP,
                                                           n=VOTER_COUNT)
+                        PI.stop()
+                        rprint(f"{self.PRINT_PREFIX} [green]done[/green]", end="")
                         
                         self.unified_step['exec_vote_strs'] = exec_votes
 
@@ -419,7 +453,7 @@ class ToT(Agent):
             self.trace = ""
             self.current_task = None
 
-            rprint(f"{self.PRINT_PREFIX} done!")
+            rprint(f"{self.PRINT_PREFIX} [green]task complete[/green]")
         else:
             error_message = f"{self.PRINT_PREFIX} Fatal: no task to finalize! Was run() invoked without assigning a task?"
             rprint(f"[red][bold]{error_message}[/bold][/red]")
@@ -493,18 +527,18 @@ class ToT(Agent):
                 "os_family": platform.system()
             }
 
-            rprint(log)
+            dprint(log)
 
             response = stage_experience(log)
 
             if response:
-                rprint(f"{self.PRINT_PREFIX} response: {response.text}")
+                dprint(f"{self.PRINT_PREFIX} response: {response.text}")
             else:
                 rprint(f"[red][bold]{self.PRINT_PREFIX} no response from experience submission![/bold][/red]")
         else:
             rprint(f"[yellow][bold]{self.PRINT_PREFIX} PROVIDE_FEEDBACK not set to \"True\" in .env - not sending feedback[/bold][/yellow]")
 
-        if not LOCAL_LOGS:
+        if not get_env_constants()["LOCAL_LOGS"]:
             rprint(f"[yellow][bold]{self.PRINT_PREFIX} LOCAL_LOGS not set to \"True\" in .env - removing local log cache[/bold][/yellow]")
             os.remove(LOGFILE_PATH)
 
@@ -644,7 +678,7 @@ Here's how it interprets your feedback on the last run:[/{FRIENDLY_COLOR}]
     
     def choose(self, candidates: list[str], scores: list[int]) -> str:
         best_plan = candidates[np.argmax(scores)]
-        rprint(f"{self.PRINT_PREFIX} best_plan:\n{best_plan}")
+        dprint(f"{self.PRINT_PREFIX} best_plan:\n{best_plan}")
 
         return best_plan
     
@@ -667,7 +701,7 @@ Here's how it interprets your feedback on the last run:[/{FRIENDLY_COLOR}]
             scores[best_candidate_abs_idx] += 1
             scores[worst_candidate_abs_idx] -= 1
 
-        rprint(f"{self.PRINT_PREFIX} scores: {scores}")
+        dprint(f"{self.PRINT_PREFIX} scores: {scores}")
 
         return scores
 
@@ -690,10 +724,10 @@ Here's how it interprets your feedback on the last run:[/{FRIENDLY_COLOR}]
         avg_yes_votes = sum_yes_votes / VOTER_COUNT
         avg_error_votes = sum_error_votes / VOTER_COUNT
         
-        rprint(f"{self.PRINT_PREFIX} sum_yes_votes: {sum_yes_votes}")
-        rprint(f"{self.PRINT_PREFIX} avg_yes_votes: {avg_yes_votes}")
+        dprint(f"{self.PRINT_PREFIX} sum_yes_votes: {sum_yes_votes}")
+        dprint(f"{self.PRINT_PREFIX} avg_yes_votes: {avg_yes_votes}")
 
-        rprint(f"{self.PRINT_PREFIX} sum_error_votes: {sum_error_votes}")
-        rprint(f"{self.PRINT_PREFIX} avg_error_votes: {avg_error_votes}")
+        dprint(f"{self.PRINT_PREFIX} sum_error_votes: {sum_error_votes}")
+        dprint(f"{self.PRINT_PREFIX} avg_error_votes: {avg_error_votes}")
         
         return avg_yes_votes, avg_error_votes

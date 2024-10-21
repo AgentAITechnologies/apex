@@ -8,7 +8,7 @@ import dotenv
 from typing import Type, Optional
 from typing_extensions import Self
 
-from rich import print
+from rich import print as rprint
 
 from agents.agent import Agent
 from agents.state_management import ConversationStateMachine
@@ -17,6 +17,7 @@ from agents.tot.tot import ToT
 
 from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict
 from utils.llm import llm_turn
+from utils.console_io import debug_print as dprint
 
 from anthropic import Anthropic
 
@@ -34,7 +35,7 @@ class AgentManager():
             cls.PRINT_PREFIX = f"{kwargs['prefix']} {cls.PRINT_PREFIX}"
 
         if cls._instance is None:
-            print(f"{cls.PRINT_PREFIX} Creating a singleton AgentManager")
+            dprint(f"{cls.PRINT_PREFIX} Creating a singleton AgentManager")
             cls._instance = super(AgentManager, cls).__new__(cls)
             cls._instance.__initialized = False
 
@@ -50,7 +51,7 @@ class AgentManager():
                     shutil.rmtree(sessions_dir)
             else:
                 error_message = f"{self.PRINT_PREFIX} SESSIONS_DIR environment variable not set (check .env)"
-                print(f"[red][bold]{error_message}[/bold][/red]")
+                rprint(f"[red][bold]{error_message}[/bold][/red]")
                 raise KeyError(error_message)
 
             self.agents: list[Agent] = []
@@ -58,20 +59,20 @@ class AgentManager():
             agtmgr_dir, input_dir = os.environ.get("AGTMGR_DIR"), os.environ.get("INPUT_DIR")
             if agtmgr_dir is None:
                 error_message = f"{self.PRINT_PREFIX} AGTMGR_DIR environment variable not set (check .env)"
-                print(f"[red][bold]{error_message}[/bold][/red]")
+                rprint(f"[red][bold]{error_message}[/bold][/red]")
                 raise KeyError(error_message)
             if input_dir is None:
                 error_message = f"{self.PRINT_PREFIX} INPUT_DIR environment variable not set (check .env)"
-                print(f"[red][bold]{error_message}[/bold][/red]")
+                rprint(f"[red][bold]{error_message}[/bold][/red]")
                 raise KeyError(error_message)
 
             with open(os.path.join(agtmgr_dir, input_dir, "states.json")) as file:
                 state_data = json.load(file)
-                print(f"{self.PRINT_PREFIX} loaded state_data")
+                dprint(f"{self.PRINT_PREFIX} loaded state_data")
 
             with open(os.path.join(agtmgr_dir, input_dir, "transitions.json")) as file:
                 transition_data = json.load(file)
-                print(f"{self.PRINT_PREFIX} loaded transition_data")
+                dprint(f"{self.PRINT_PREFIX} loaded transition_data")
 
             self.csm = ConversationStateMachine(state_data=state_data, transition_data=transition_data, init_state_path="AwaitIPC", prefix=self.PRINT_PREFIX, owner_class_name="AgentManager")
             self.memory = Memory(environ_path_key="AGTMGR_DIR", prefix=self.PRINT_PREFIX)
@@ -79,7 +80,7 @@ class AgentManager():
             self.parsed_response = None
 
             self.__initialized = True
-            print(f"{self.PRINT_PREFIX} Initialized the instance")
+            dprint(f"{self.PRINT_PREFIX} Initialized the instance")
 
     def ipc(self, trigger: str, data: dict) -> None:
         self.csm.transition(trigger, locals())
@@ -91,21 +92,21 @@ class AgentManager():
                 case "RouteAction":
                     action = data['action']
 
-                    print(f"{self.PRINT_PREFIX} Routing action: {action}")
+                    dprint(f"{self.PRINT_PREFIX} Routing action: {action}")
 
-                    print(self.agents)
+                    dprint(self.agents)
 
                     agents_xmlstr = self.get_agents_xmlstr()
-                    print(f"{self.PRINT_PREFIX} agents_str:\n{agents_xmlstr}")
+                    dprint(f"{self.PRINT_PREFIX} agents_str:\n{agents_xmlstr}")
 
                     action_xml = dict2xml(action)
-                    print(f"{self.PRINT_PREFIX} action_xml:\n{action_xml}")
+                    dprint(f"{self.PRINT_PREFIX} action_xml:\n{action_xml}")
 
                     action_xmlstr = xml2xmlstr(action_xml)
-                    print(f"{self.PRINT_PREFIX} action_xmlstr:\n{action_xmlstr}")
+                    dprint(f"{self.PRINT_PREFIX} action_xmlstr:\n{action_xmlstr}")
 
                     self.memory.prime_all_prompts(self.csm.current_state.get_hpath(), "AGTMGR_DIR", dynamic_metaprompt=None, user_frmt={"agents_str": agents_xmlstr, "task": action_xmlstr})
-                    print(f"{self.PRINT_PREFIX} self.memory.conversation_history:\n{self.memory.conversation_history}")
+                    dprint(f"{self.PRINT_PREFIX} self.memory.conversation_history:\n{self.memory.conversation_history}")
 
                     text = llm_turn(client=self.client,
                                     prompts={'system': self.memory.get_system_prompt(),
@@ -116,7 +117,7 @@ class AgentManager():
                     self.memory.store_llm_response("<output>" + text + "</output>")
 
                     agent_selection = xmlstr2dict(text, self.client)
-                    print(f"{self.PRINT_PREFIX} agent_selection:\n{agent_selection}")
+                    dprint(f"{self.PRINT_PREFIX} agent_selection:\n{agent_selection}")
 
                     if not agent_selection['name']:
                         self.csm.transition("CreateAgent", locals())
@@ -126,7 +127,7 @@ class AgentManager():
                 case "CreateAgent":
                     self.memory.prime_all_prompts(self.csm.current_state.get_hpath(), "AGTMGR_DIR", dynamic_metaprompt=None, system_frmt={"task": action_xmlstr}, user_frmt={"task": action_xmlstr})
 
-                    print(f"{self.PRINT_PREFIX} self.memory.conversation_history:\n{self.memory.conversation_history}")
+                    dprint(f"{self.PRINT_PREFIX} self.memory.conversation_history:\n{self.memory.conversation_history}")
 
                     text = llm_turn(client=self.client,
                                     prompts={'system': self.memory.get_system_prompt(),
@@ -137,9 +138,9 @@ class AgentManager():
                     self.memory.store_llm_response("<output>" + text + "</output>")
 
                     new_agent_info = xmlstr2dict(text, self.client)
-                    print(f"{self.PRINT_PREFIX} new_agent_info:\n{new_agent_info}")
+                    dprint(f"{self.PRINT_PREFIX} new_agent_info:\n{new_agent_info}")
 
-                    print(f"{self.PRINT_PREFIX} Creating agent: {new_agent_info['name']}")
+                    rprint(f"{self.PRINT_PREFIX} Creating agent: {new_agent_info['name']}")
 
                     new_agent = ToT(client=self.client,
                                     name=new_agent_info['name'],
@@ -155,13 +156,17 @@ class AgentManager():
                 case "AssignAgent":
                     for agent in self.agents:
                         if agent.name == agent_selection['name']:
+                            rprint(f"{self.PRINT_PREFIX} Assigning agent: {agent.name}")
+
                             agent.add_task(action)
                             agent.run()
+
                             self.csm.transition("AwaitIPC", locals)
+
                             break
 
     def register_agent(self, agent: Agent) -> None:
-        print(f"{self.PRINT_PREFIX} Registering agent: {agent.name}")
+        dprint(f"{self.PRINT_PREFIX} Registering agent: {agent.name}")
         self.agents.append(agent)
 
     def get_agents_xmlstr(self) -> str:
@@ -176,7 +181,7 @@ class AgentManager():
             for task in agent.tasks:
                 if not isinstance(task, dict):
                     error_message = f"{self.PRINT_PREFIX} task was {type(task)}, expected dict"
-                    print(f"[bold][red]{error_message}[/red][/bold]")
+                    rprint(f"[bold][red]{error_message}[/red][/bold]")
                     raise TypeError(error_message)
                     
                 task_xml = dict2xml(task)
