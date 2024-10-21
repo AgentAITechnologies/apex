@@ -26,7 +26,8 @@ from openai.types.chat.chat_completion_assistant_message_param import ChatComple
 from openai.types.chat.chat_completion_system_message_param import ChatCompletionSystemMessageParam
 from openai.types.chat.chat_completion import Choice
 
-from rich import print
+from rich import print as rprint
+from utils.console_io import debug_print as dprint
 
 from utils.enums import Role
 
@@ -41,13 +42,13 @@ def cast_messages_anthropic(messages: Iterable[Message]) -> list[AnthropicMessag
             casted_messages.append(AnthropicMessageParam(role=message['role'], content=message['content']))
         else:
             error_message = f"{PRINT_PREFIX} invalid message role: {message['role']}"
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise ValueError(error_message)
 
     return casted_messages
 
 def on_backoff_anthropic(details):
-    print(f"[red][bold]{PRINT_PREFIX} Anthropic API error - backing off {details['wait']:0.1f} seconds after {details['tries']} tries\n{details['exception']}[/bold][/red]")
+    rprint(f"[red][bold]{PRINT_PREFIX} Anthropic API error - backing off {details['wait']:0.1f} seconds after {details['tries']} tries\n{details['exception']}[/bold][/red]")
 
 @backoff.on_exception(backoff.expo,
                       (RateLimitError, InternalServerError),
@@ -57,7 +58,7 @@ def llm_call_anthropic(client: Anthropic, system: str, messages: list[Message], 
     model = os.environ.get("ANTHROPIC_MODEL")
     if model is None:
         error_message = f"{PRINT_PREFIX} ANTHROPIC_MODEL not set"
-        print(f"[red][bold]{error_message}[/bold][/red]")
+        rprint(f"[red][bold]{error_message}[/bold][/red]")
         raise KeyError(error_message)
     
     anthropic_messages = cast_messages_anthropic(messages)
@@ -73,11 +74,11 @@ def llm_call_anthropic(client: Anthropic, system: str, messages: list[Message], 
         )
     except RateLimitError as e:
         error_message = f"{PRINT_PREFIX} Anthropic RateLimitError: {e}"
-        print(f"[red][bold]{error_message}[/bold][/red]")
+        rprint(f"[red][bold]{error_message}[/bold][/red]")
         raise LLMAPIRateLimitError(error_message)
     except InternalServerError as e:
         error_message = f"{PRINT_PREFIX} Anthropic InternalServerError: {e}"
-        print(f"[red][bold]{error_message}[/bold][/red]")
+        rprint(f"[red][bold]{error_message}[/bold][/red]")
         raise LLMAPIInternalServerError(error_message)
     
     return message
@@ -86,7 +87,7 @@ def llm_call_anthropic_futures_to_texts(texts, futures):
     for i, future in enumerate(futures):
         try:
             llm_response = future.result()
-            print(f"{PRINT_PREFIX} llm_response[{i}]: {llm_response}")
+            dprint(f"{PRINT_PREFIX} llm_response[{i}]: {llm_response}")
 
             anthropic_content: AnthropicContentBlock = llm_response.content[0]
             if isinstance(anthropic_content, AnthropicTextBlock):
@@ -96,7 +97,7 @@ def llm_call_anthropic_futures_to_texts(texts, futures):
                 texts[i] = None
                                 
         except Exception as exc:
-            print(f"{PRINT_PREFIX} Error obtaining future result: {exc}")
+            rprint(f"{PRINT_PREFIX} [red][bold]Error obtaining future result: {exc}[/bold][/red]")
             texts[i] = None
 
 def cast_messages_openai(messages: Iterable[Message]) -> list[ChatCompletionMessageParam]:
@@ -110,7 +111,7 @@ def cast_messages_openai(messages: Iterable[Message]) -> list[ChatCompletionMess
             casted_messages.append(ChatCompletionSystemMessageParam(role='system', content=message['content']))
         else:
             error_message = f"{PRINT_PREFIX} invalid message role: {message['role']}"
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise ValueError(error_message)
 
     return casted_messages
@@ -119,7 +120,7 @@ def llm_call_openai(client: OpenAI, system: str, messages: list[Message], stop_s
     model = os.environ.get("OPENAI_MODEL")
     if model is None:
         error_message = f"{PRINT_PREFIX} OPENAI_MODEL not set"
-        print(f"[red][bold]{error_message}[/bold][/red]")
+        rprint(f"[red][bold]{error_message}[/bold][/red]")
         raise KeyError(error_message)
     
     openai_system: Message = {'role': Role.SYSTEM.value, 'content': system}
@@ -145,7 +146,7 @@ def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict | list[PromptsDic
     if isinstance(prompts, dict):
         if not isinstance(n, int) or n < 1:
             error_message = f"{PRINT_PREFIX} n must be a positive integer if prompts is a dictionary"
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise ValueError(error_message)
         
         if isinstance(prompts['system'], str) and isinstance(prompts['messages'], list):
@@ -178,7 +179,7 @@ def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict | list[PromptsDic
             elif isinstance(client, OpenAI):
                 llm_response = llm_call_openai(client, prompts['system'], prompts['messages'], stop_sequences, temperature, n, max_tokens)
 
-                print(f"{PRINT_PREFIX} llm_response[0:{n}]: {llm_response}")
+                dprint(f"{PRINT_PREFIX} llm_response[0:{n}]: {llm_response}")
 
                 choices: list[Choice] = llm_response.choices
 
@@ -190,7 +191,7 @@ def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict | list[PromptsDic
                         texts.append(openai_content)
                     else:
                         error_message = f"{PRINT_PREFIX} empty openai_content: {llm_response}"
-                        print(f"[red][bold]{error_message}[/bold][/red]")
+                        rprint(f"[red][bold]{error_message}[/bold][/red]")
                         raise ValueError(error_message)
 
             result = [text for text in texts if text is not None]
@@ -202,7 +203,7 @@ def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict | list[PromptsDic
     got {type(prompts['system'])} and {type(prompts['messages'])} respectively instead
     """.strip()
 
-            print(f"[red][bold]{error_message}[/bold][/red]")
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise TypeError(error_message)
         
     elif isinstance(prompts, list):
@@ -214,7 +215,7 @@ def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict | list[PromptsDic
 {PRINT_PREFIX} expected prompt['system'] to be str and prompt['messages'] to be list,
 got {type(prompt['system'])} and {type(prompt['messages'])} respectively instead
 """.strip()
-                print(f"[red][bold]{error_message}[/bold][/red]")
+                rprint(f"[red][bold]{error_message}[/bold][/red]")
                 raise TypeError(error_message)
             
         texts: list[Optional[str]] = [None] * n
@@ -249,5 +250,5 @@ got {type(prompt['system'])} and {type(prompt['messages'])} respectively instead
             
     else:
         error_message = f"{PRINT_PREFIX} expected prompts to be dict or list, got {type(prompts)} instead"
-        print(f"[red][bold]{error_message}[/bold][/red]")
+        rprint(f"[red][bold]{error_message}[/bold][/red]")
         raise TypeError(error_message)

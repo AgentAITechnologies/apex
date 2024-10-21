@@ -15,7 +15,9 @@ from utils.console_io import debug_print as dprint
 from utils.oobe import setup_environment_variables, template2env
 
 template2env()
-dprint(f"{PRINT_PREFIX} dotenv.load_dotenv(override=True): {dotenv.load_dotenv(override=True)}", force_debug_mode=True)
+
+# Test the debugger:
+# dprint(f"{PRINT_PREFIX} dotenv.load_dotenv(override=True): {dotenv.load_dotenv(override=True)}", force_debug_mode=True)
 
 from utils.parsing import get_yes_no_input
 from utils.constants import *
