@@ -94,13 +94,13 @@ def setup_environment_variables(required_keys, env_file='.env'):
 
     if USE_ANTHROPIC:
         if os.getenv('ANTHROPIC_API_KEY') == "YOUR_API_KEY_HERE":
-            rprint(f"[yellow]{PRINT_PREFIX} Your Anthropic API key is not set.[/yellow]")
-            rprint(f"[yellow]{PRINT_PREFIX} Please enter your Anthropic API key:[/yellow]")
+            rprint(f"[yellow]Your Anthropic API key is not set.[/yellow]")
+            rprint(f"[yellow]Please enter your Anthropic API key:[/yellow]")
             new_api_key = input().strip()
             
             set_key(env_file, 'ANTHROPIC_API_KEY', new_api_key)
             
-            rprint(f"[green]{PRINT_PREFIX} API key has been updated in the .env file.[/green]")
+            rprint(f"[green]API key has been updated in the .env file.[/green]")
             
             load_dotenv(override=True)
         else:
