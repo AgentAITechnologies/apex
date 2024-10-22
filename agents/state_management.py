@@ -117,8 +117,9 @@ class ConversationStateMachine:
         self.print_state_hierarchy()
 
         # pygraphviz/graphviz installation is nontrivial on Windows
-        if platform.system() == 'Linux':
-            self.visualize(owner_class_name)
+        # it's also nontrivial for electron apps on Linux apparently
+        # if platform.system() == 'Linux':
+            # self.visualize(owner_class_name)
 
         self.print_current_state()
 

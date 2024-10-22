@@ -21,6 +21,7 @@ from anthropic import Anthropic
 PRINT_PREFIX = "[bold][Parsing][/bold]"
 
 TOKEN_GROWTH_ALLOWANCE = 128
+MAX_TOKENS_ANTHROPIC = 8192
 
 
 def files2dict(path: str, extension: str) -> dict[str, str]:
@@ -86,7 +87,7 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
                                         "messages": messages},
                                 stop_sequences=[stop_seq],
                                 temperature=1.0,
-                                max_tokens=len(xml_string) + TOKEN_GROWTH_ALLOWANCE)
+                                max_tokens=min(len(xml_string) + TOKEN_GROWTH_ALLOWANCE, MAX_TOKENS_ANTHROPIC))
 
             return xmlstr2dict(fixed_xml, client, depth + 1)
         else:
