@@ -31,7 +31,7 @@ __LLM-powered agents are the frontier of practical AI, but most attempts do not 
     3. Choose ```Edit the system environment variables```
     4. Click the ```Environment Variables...``` button under the ```Advanced``` tab
     5. Select ```Path``` under ```User variables for <your_username>``` and choose ```Edit...```
-    6. Ensure ```C:\Users\rod_j_m\AppData\Local\Programs\Python\Python310\Scripts\``` and ```C:\Users\rod_j_m\AppData\Local\Programs\Python\Python310\``` are listed __above__ ```%USERPROFILE%\AppData\Local\Microsoft\WindowsApps``` by using the ```Move Up``` and ```Move Down`` buttons
+    6. Ensure ```C:\Users\{{USER}}\AppData\Local\Programs\Python\Python310\Scripts\``` and ```C:\Users\{{USER}}\AppData\Local\Programs\Python\Python310\``` are listed __above__ ```%USERPROFILE%\AppData\Local\Microsoft\WindowsApps``` by using the ```Move Up``` and ```Move Down`` buttons
 3. __Clone the repo__
     1. Install ```git``` if not already installed
         1. Navigate to https://gitforwindows.org/
