@@ -1,5 +1,4 @@
-import time
-from typing import Iterable, Optional
+from typing import Iterable, Optional, cast
 
 import os
 import backoff
@@ -8,13 +7,12 @@ import concurrent.futures
 
 from utils.constants import CLIENT_VERSION
 from utils.custom_exceptions import LLMAPIInternalServerError, LLMAPIRateLimitError
-from utils.custom_types import Message, PromptsDict
+from utils.custom_types import Message, PromptsDict, ToolList, ToolCallDict, ToolCallsList
 
 from anthropic import Anthropic
 from anthropic.types import Message as AnthropicMessage
-from anthropic.types import ContentBlock as AnthropicContentBlock
-from anthropic.types import TextBlock as AnthropicTextBlock
 from anthropic.types import MessageParam as AnthropicMessageParam
+from anthropic.types.beta import BetaMessage, BetaMessageParam, BetaToolUnionParam, BetaToolChoiceParam
 from anthropic import RateLimitError, InternalServerError
 
 from openai import OpenAI
@@ -35,18 +33,6 @@ from utils.enums import Role
 PRINT_PREFIX = "[bold][LLM][/bold]"
 
 
-def cast_messages_anthropic(messages: Iterable[Message]) -> list[AnthropicMessageParam]:
-    casted_messages = []
-    for message in messages:
-        if message['role'] == 'user' or message['role'] == 'assistant':
-            casted_messages.append(AnthropicMessageParam(role=message['role'], content=message['content']))
-        else:
-            error_message = f"{PRINT_PREFIX} invalid message role: {message['role']}"
-            rprint(f"[red][bold]{error_message}[/bold][/red]")
-            raise ValueError(error_message)
-
-    return casted_messages
-
 def on_backoff_anthropic(details):
     rprint(f"[red][bold]{PRINT_PREFIX} Anthropic API error - backing off {details['wait']:0.1f} seconds after {details['tries']} tries\n{details['exception']}[/bold][/red]")
 
@@ -54,24 +40,37 @@ def on_backoff_anthropic(details):
                       (RateLimitError, InternalServerError),
                       max_tries=10,
                       on_backoff=on_backoff_anthropic)
-def llm_call_anthropic(client: Anthropic, system: str, messages: list[Message], stop_sequences: list[str], temperature: float, max_tokens: int) -> AnthropicMessage:
+def llm_call_anthropic(client: Anthropic, system: str, messages: list[Message], stop_sequences: list[str], temperature: float, max_tokens: int, tools: Optional[ToolList]) -> AnthropicMessage | BetaMessage:
     model = os.environ.get("ANTHROPIC_MODEL")
     if model is None:
         error_message = f"{PRINT_PREFIX} ANTHROPIC_MODEL not set"
         rprint(f"[red][bold]{error_message}[/bold][/red]")
         raise KeyError(error_message)
     
-    anthropic_messages = cast_messages_anthropic(messages)
+    # anthropic_messages = cast_messages_anthropic(messages)
+    anthropic_messages = cast(Iterable[AnthropicMessageParam], messages)
     
     try:
-        message = client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            system=system,
-            messages=anthropic_messages,
-            stop_sequences=stop_sequences,
-        )
+        if tools is None:
+            message = client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                system=system,
+                messages=anthropic_messages,
+                stop_sequences=stop_sequences,
+            )
+        else:
+            message = client.beta.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                system=system,
+                tools=cast(Iterable[BetaToolUnionParam], tools),
+                messages=cast(list[BetaMessageParam], messages),
+                betas=["computer-use-2024-10-22"],
+                tool_choice=cast(BetaToolChoiceParam, {"type": "any"})
+            )
     except RateLimitError as e:
         error_message = f"{PRINT_PREFIX} Anthropic RateLimitError: {e}"
         rprint(f"[red][bold]{error_message}[/bold][/red]")
@@ -84,21 +83,74 @@ def llm_call_anthropic(client: Anthropic, system: str, messages: list[Message], 
     return message
 
 def llm_call_anthropic_futures_to_texts(texts, futures):
+    """
+    Process a list of Anthropic API futures and extract their text content.
+    
+    Args:
+        texts: List to store the processed results
+        futures: List of concurrent.futures.Future objects containing Anthropic API responses
+    
+    Returns:
+        None (modifies texts list in-place)
+    """
     for i, future in enumerate(futures):
         try:
             llm_response = future.result()
             dprint(f"{PRINT_PREFIX} llm_response[{i}]: {llm_response}")
-
-            anthropic_content: AnthropicContentBlock = llm_response.content[0]
-            if isinstance(anthropic_content, AnthropicTextBlock):
-                text: str = anthropic_content.text
-                texts[i] = text
+            
+            content_block = llm_response.content[0]
+            if hasattr(content_block, 'text'):
+                texts[i] = content_block.text
             else:
                 texts[i] = None
-                                
+                dprint(f"{PRINT_PREFIX} Not a text block: {type(content_block)}")
+                
         except Exception as exc:
             rprint(f"{PRINT_PREFIX} [red][bold]Error obtaining future result: {exc}[/bold][/red]")
             texts[i] = None
+
+def llm_call_anthropic_futures_to_tool_calls(tool_calls_list, futures):
+    """
+    Process a list of Anthropic API futures and extract their tool calls and content.
+    
+    Args:
+        tool_calls_list: List to store the processed tool calls
+        futures: List of concurrent.futures.Future objects containing Anthropic API responses
+    
+    Returns:
+        None (modifies tool_calls_list in-place)
+    """
+    for i, future in enumerate(futures):
+        try:
+            llm_response = future.result()
+            dprint(f"{PRINT_PREFIX} llm_response[{i}]: {llm_response}")
+            
+            # Find the text block and tool use block in the content
+            text_block = next(
+                (block for block in llm_response.content 
+                 if hasattr(block, 'type') and block.type == 'text'),
+                None
+            )
+            
+            tool_use_block = next(
+                (block for block in llm_response.content 
+                 if hasattr(block, 'type') and block.type == 'tool_use'),
+                None
+            )
+            
+            if tool_use_block is not None:
+                tool_calls_list[i] = {
+                    'content': text_block.text if text_block else '',
+                    'name': tool_use_block.name,
+                    'input': tool_use_block.input
+                }
+            else:
+                tool_calls_list[i] = None
+                dprint(f"{PRINT_PREFIX} No tool use block found in content")
+                
+        except Exception as exc:
+            rprint(f"{PRINT_PREFIX} [red][bold]Error obtaining future result: {exc}[/bold][/red]")
+            tool_calls_list[i] = None
 
 def cast_messages_openai(messages: Iterable[Message]) -> list[ChatCompletionMessageParam]:
     casted_messages = []
@@ -139,13 +191,13 @@ def llm_call_openai(client: OpenAI, system: str, messages: list[Message], stop_s
 
     return response
 
-def llm_turn(client: Anthropic | OpenAI, prompts: PromptsDict, stop_sequences: list[str], temperature: float, max_tokens: int = 4000) -> str:
+def llm_turn(client: Anthropic | OpenAI, prompts: PromptsDict, stop_sequences: list[str], temperature: float, max_tokens: int = 4000) -> str | ToolCallDict:
     return llm_turns(client, prompts, stop_sequences, temperature, n=1, max_tokens=max_tokens)[0]
 
-def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict | list[PromptsDict], stop_sequences: list[str], temperature: float, n: Optional[int], max_tokens: int = 4000) -> list[str]:    
+def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict | list[PromptsDict], stop_sequences: list[str], temperature: float, n: Optional[int], max_tokens: int = 4000, tools: Optional[ToolList] = None) -> list[str] | ToolCallsList:    
     if isinstance(prompts, dict):
         if not isinstance(n, int) or n < 1:
-            error_message = f"{PRINT_PREFIX} n must be a positive integer if prompts is a dictionary"
+            error_message = f"{PRINT_PREFIX} n must be a positive integer if prompts is a dictionary (rather than a list of dictionaries)"
             rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise ValueError(error_message)
         
@@ -165,16 +217,22 @@ def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict | list[PromptsDic
                                 prompts['messages'], 
                                 stop_sequences, 
                                 temperature,
-                                max_tokens=max_tokens
+                                max_tokens=max_tokens,
+                                tools=tools
                             )
                         )
-
-                        # if i < n - 1:  # Don't delay after the last submission
-                            # time.sleep(0.1)
                     
                     concurrent.futures.wait(futures)
 
-                    llm_call_anthropic_futures_to_texts(texts, futures)
+                    if tools is None:
+                        llm_call_anthropic_futures_to_texts(texts, futures)
+                    else:
+                        tool_calls_list: list[Optional[dict]] = [None] * n
+                        llm_call_anthropic_futures_to_tool_calls(tool_calls_list, futures)
+
+                        result = [{'content': tool_call['content'], 'name': tool_call['name'], 'input': tool_call['input']} if tool_call is not None else None for tool_call in tool_calls_list]
+                        
+                        return cast(ToolCallsList, [r for r in result if r is not None])
 
             elif isinstance(client, OpenAI):
                 llm_response = llm_call_openai(client, prompts['system'], prompts['messages'], stop_sequences, temperature, n, max_tokens)
@@ -228,19 +286,26 @@ got {type(prompt['system'])} and {type(prompt['messages'])} respectively instead
                     future = executor.submit(
                         llm_call_anthropic,
                         client,
-                        prompts[i]['system'],  # type: ignore
-                        prompts[i]['messages'],  # type: ignore
+                        cast(str, prompts[i]['system']),
+                        cast(list[Message], prompts[i]['messages']),
                         stop_sequences,
                         temperature,
-                        max_tokens=max_tokens
+                        max_tokens=max_tokens,
+                        tools=tools
                     )
                     futures.append(future)
                     
-                    # if i < n - 1:  # Don't delay after the last submission
-                        # time.sleep(0.1)
-                    
                 concurrent.futures.wait(futures)
-                llm_call_anthropic_futures_to_texts(texts, futures)
+
+                if tools is None:
+                    llm_call_anthropic_futures_to_texts(texts, futures)
+                else:
+                    tool_calls_list: list[Optional[dict]] = [None] * n
+                    llm_call_anthropic_futures_to_tool_calls(tool_calls_list, futures)
+
+                    result = [{'content': tool_call['content'], 'name': tool_call['name'], 'input': tool_call['input']} if tool_call is not None else None for tool_call in tool_calls_list]
+                    
+                    return cast(ToolCallsList, [r for r in result if r is not None])
 
         elif isinstance(client, OpenAI):
             raise NotImplementedError(f"OpenAI not supported for prompt list paralellization in this version ({CLIENT_VERSION})")

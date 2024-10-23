@@ -2,7 +2,7 @@ import os
 import json
 import platform
 import random
-from typing import Optional
+from typing import Literal, Optional, cast
 
 from pynput import keyboard
 
@@ -13,7 +13,7 @@ import numpy as np
 
 from agents.agent import Agent
 from agents.state_management import ConversationStateMachine
-from agents.execution_management.execution_management import CodeExecutor
+from agents.execution_management.execution_management import BashExecutor, CodeExecutor
 from agents.prompt_management import load_system_prompt, load_user_prompt, get_msg
 
 from agents.memory import Memory
@@ -22,11 +22,11 @@ from remote.experience import get_remote_experiences, stage_experience
 from utils.context import get_platform_details
 from utils.custom_exceptions import ExecError
 from utils.enums import Role
-from utils.custom_types import FeedbackDict, PromptsDict
-from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, remove_escape_key, format_nested_dict
+from utils.custom_types import FeedbackDict, PromptsDict, ProposalCandidatesList, ToolCallDict, ToolCallsList, BashConfig, BashResult, PythonConfig, NestedStrDict
+from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, remove_escape_key, format_nested_dict, toolcall2str
 from utils.llm import llm_turns
 from utils.files import create_incrementing_directory
-from utils.constants import CLIENT_VERSION, FRIENDLY_COLOR, get_env_constants
+from utils.constants import CLIENT_VERSION, FRIENDLY_COLOR, COMPUTER_TOOLS, get_env_constants
 from utils.console_io import ProgressIndicator, debug_print as dprint
 
 from anthropic import Anthropic
@@ -86,6 +86,7 @@ class ToT(Agent):
         self.csm = ConversationStateMachine(state_data=state_data, transition_data=transition_data, init_state_path="Plan", prefix=self.PRINT_PREFIX, owner_class_name="ToT")
 
         self.code_executor = CodeExecutor(prefix=self.PRINT_PREFIX, owner_name=self.name)
+        self.bash_executor = BashExecutor()
 
         self.unified_memory = Memory(prefix=self.PRINT_PREFIX)
         self.unified_steps = []
@@ -166,12 +167,12 @@ class ToT(Agent):
                         # re-implement set() optimizaiton after verifying it doesn't interfere with shuffling logic
                         rprint(f"planning", end="")
                         with ProgressIndicator() as PI:               
-                            plan_candidates: list[str] = llm_turns(client=self.client,
-                                                                    prompts={"system": system_prompt,
-                                                                             "messages": messages},
-                                                                    stop_sequences=["</plan>"],
-                                                                    temperature=TEMP,
-                                                                    n=PLAN_COUNT)
+                            plan_candidates = cast(list[str], llm_turns(client=self.client,
+                                                                        prompts={"system": system_prompt,
+                                                                                 "messages": messages},
+                                                                        stop_sequences=["</plan>"],
+                                                                        temperature=TEMP,
+                                                                        n=PLAN_COUNT))
                         rprint(f"[green]done[/green]")
                         
                         self.unified_step['plan_candidates'] = plan_candidates
@@ -209,11 +210,11 @@ class ToT(Agent):
 
                         rprint(f"voting", end="")
                         with ProgressIndicator() as PI:
-                            plan_votes = llm_turns(client=self.client,
-                                                    prompts=prompts,
-                                                    stop_sequences=["</evaluation>"],
-                                                    temperature=TEMP,
-                                                    n=None)                
+                            plan_votes = cast(list[str], llm_turns(client=self.client,
+                                                                   prompts=prompts,
+                                                                   stop_sequences=["</evaluation>"],
+                                                                   temperature=TEMP,
+                                                                   n=None))            
                         rprint(f"[green]done[/green]")
 
                         self.csm.transition("SumPlanVotes", locals())
@@ -237,26 +238,24 @@ class ToT(Agent):
 
                         user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                         "task": self.current_task,
-                                                                                                        "plan": self.unified_step['best_plan'],
+                                                                                                        "plan": cast(str, self.unified_step['best_plan']),
                                                                                                         "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
                         
-                        start_seq = self.open_step_tag + "<implementation>" + "\n" + "```python"
-                        assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
-                        
-                        messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
+                        messages = self.unified_memory.conversation_history + [user_prompt]
 
                         # re-implement set() optimizaiton after verifying it doesn't interfere with shuffling logic
                         rprint(f"proposing implementations", end="")
                         with ProgressIndicator() as PI:
-                            raw_proposals: list[str] = llm_turns(client=self.client,
-                                                             prompts={"system": system_prompt,
-                                                                      "messages": messages},
-                                                             stop_sequences=["```"],
-                                                             temperature=TEMP,
-                                                             n=PROPOSAL_COUNT)
+                            raw_proposals = cast(ToolCallsList, llm_turns(client=self.client,
+                                                                          prompts={"system": system_prompt,
+                                                                                   "messages": messages},
+                                                                          stop_sequences=[],
+                                                                          temperature=TEMP,
+                                                                          n=PROPOSAL_COUNT,
+                                                                          tools=COMPUTER_TOOLS))
                         rprint(f"[green]done[/green]")
                             
-                        proposal_candidates = ["```python" + raw_proposal + "```" for raw_proposal in raw_proposals]
+                        proposal_candidates = cast(ProposalCandidatesList, [{"str": toolcall2str(raw_proposal), "dict": raw_proposal} for raw_proposal in raw_proposals])
                         
                         if len(proposal_candidates) != 1:
                             self.csm.transition("ProposeVote", locals())
@@ -277,11 +276,11 @@ class ToT(Agent):
                         for _ in range(VOTER_COUNT):
                             self.check_interrupt()
 
-                            shuffled_indices, proposal_candidates_str = self.format_candidates(proposal_candidates)
+                            shuffled_indices, proposal_candidates_str = self.format_candidates(cast(list[str], [prop["str"] for prop in proposal_candidates]))
 
                             user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                             "task": self.current_task,
-                                                                                                            "plan": self.unified_step['best_plan'],
+                                                                                                            "plan": cast(str, self.unified_step['best_plan']),
                                                                                                             "proposal_candidates_str": proposal_candidates_str,
                                                                                                             "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
                             
@@ -294,59 +293,69 @@ class ToT(Agent):
                         rprint(f"voting on implementations", end="")
                         with ProgressIndicator() as PI:
                             proposal_votes = llm_turns(client=self.client,
-                                                    prompts=prompts,
-                                                    stop_sequences=["</evaluation>"],
-                                                    temperature=TEMP,
-                                                    n=None)
+                                                       prompts=prompts,
+                                                       stop_sequences=["</evaluation>"],
+                                                       temperature=TEMP,
+                                                       n=None)
                         rprint(f"[green]done[/green]")
 
                         self.csm.transition("SumProposeVotes", locals())
 
                     case "SumProposeVotes":
                         proposal_scores = self.reduce_scores(proposal_candidates,
-                                                             proposal_votes,
+                                                             cast(list[str], proposal_votes),
                                                              proposal_index_maps)
 
                         self.csm.transition("ChooseProposition", locals())
 
                     case "ChooseProposition":
-                        best_proposition = self.choose(proposal_candidates, proposal_scores)
+                        best_proposition = cast(ToolCallDict, self.choose(proposal_candidates, proposal_scores))
                         self.unified_step['best_proposition'] = best_proposition
 
                         self.csm.transition("Exec", locals())
 
                     case "Exec":
-                        fenced_code = self.unified_step['best_proposition']
-                        
-                        parsed_code = extract_language_and_code(fenced_code)
-                        if not parsed_code:
-                            error_message = f"{self.PRINT_PREFIX} code not parsable:\n{fenced_code}"
-                            rprint(f"[red][bold]{error_message}[/bold][/red]")
-                            raise SyntaxError(error_message)
-                        
-                        language, code = parsed_code
+                        tool_call = cast(ToolCallDict, self.unified_step['best_proposition'])
 
-                        rprint(f"Proposed code to execute:\n")
-                        rprint(code.strip())
+                        match tool_call['name']:
+                            case "bash":
+                                config = cast(BashConfig, tool_call['input'])
+                                execute_bash = True
 
-                        execute_code = get_yes_no_input(f"\nDo you want to execute this code?")
+                                if "command" in config:
+                                    execute_bash = get_yes_no_input(f"Execute bash command?:\n{config['command']}\n")
 
-                        if execute_code:
-                            self.code_executor.write_code_step_file(code, self.step_num)
+                                if execute_bash:
+                                    stdout, stderr, exit_code = self.bash_executor.execute_bash(config)
 
-                            stdout, stderr = self.code_executor.execute_code_step(self.step_num)
+                                self.unified_step['output'] = stdout
+                                self.unified_step['error'] = stderr
 
-                            dprint(f"{self.PRINT_PREFIX} stdout:")
-                            dprint(stdout)
-                            dprint(f"{self.PRINT_PREFIX} stderr:")
-                            dprint(stderr)
+                            case "python":
+                                config = cast(PythonConfig, tool_call['input'])
+                                code = config['code']
 
-                            self.unified_step['output'] = stdout
-                            self.unified_step['error'] = stderr
-                        else:
-                            rprint(f"{self.PRINT_PREFIX} Code execution skipped.")
-                            self.unified_step['output'] = "Code execution skipped by user."
-                            self.unified_step['error'] = ""
+                                rprint(f"Proposed code to execute:\n")
+                                rprint(code.strip())
+
+                                execute_code = get_yes_no_input(f"\nDo you want to execute this code?")
+
+                                if execute_code:
+                                    self.code_executor.write_code_step_file(code, self.step_num)
+
+                                    stdout, stderr = self.code_executor.execute_code_step(self.step_num)
+
+                                    dprint(f"{self.PRINT_PREFIX} stdout:")
+                                    dprint(stdout)
+                                    dprint(f"{self.PRINT_PREFIX} stderr:")
+                                    dprint(stderr)
+
+                                    self.unified_step['output'] = stdout
+                                    self.unified_step['error'] = stderr
+                                else:
+                                    rprint(f"{self.PRINT_PREFIX} Code execution skipped.")
+                                    self.unified_step['output'] = "Code execution skipped by user."
+                                    self.unified_step['error'] = ""
 
                         self.csm.transition("ExecVote", locals())
 
@@ -365,12 +374,12 @@ class ToT(Agent):
 
                         rprint(f"planning a fix", end="")
                         with ProgressIndicator() as PI:                   
-                            plan_candidates: list[str] = llm_turns(client=self.client,
-                                                            prompts={"system": system_prompt,
-                                                                    "messages": messages},
-                                                            stop_sequences=["</plan>"],
-                                                            temperature=TEMP,
-                                                            n=PLAN_COUNT)
+                            plan_candidates = cast(list[str], llm_turns(client=self.client,
+                                                                        prompts={"system": system_prompt,
+                                                                                 "messages": messages},
+                                                                        stop_sequences=["</plan>"],
+                                                                        temperature=TEMP,
+                                                                        n=PLAN_COUNT))
                         rprint(f"[green]done[/green]")
                         
                         self.unified_step['plan_candidates'] = plan_candidates
@@ -383,10 +392,13 @@ class ToT(Agent):
 
                     case "ExecVote":
                         system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": self.current_task})
+
+                        best_prop_str = xml2xmlstr(dict2xml(cast(NestedStrDict, self.unified_step['best_proposition'])))
+
                         user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                         "task": self.current_task,
-                                                                                                        "plan": self.unified_step['best_plan'],
-                                                                                                        "implementation": self.unified_step['best_proposition'],
+                                                                                                        "plan": cast(str, self.unified_step['best_plan']),
+                                                                                                        "implementation": best_prop_str,
                                                                                                         "output": self.unified_step['output'],
                                                                                                         "error": self.unified_step['error']}))
                         
@@ -397,12 +409,12 @@ class ToT(Agent):
                         
                         rprint(f"voting on completion status", end="")
                         with ProgressIndicator() as PI:
-                            exec_votes: list[str] = llm_turns(client=self.client,
-                                                          prompts={"system": system_prompt,
-                                                                   "messages": messages},
-                                                          stop_sequences=["</evaluation>"],
-                                                          temperature=TEMP,
-                                                          n=VOTER_COUNT)
+                            exec_votes = cast(list[str], llm_turns(client=self.client,
+                                                                  prompts={"system": system_prompt,
+                                                                           "messages": messages},
+                                                                  stop_sequences=["</evaluation>"],
+                                                                  temperature=TEMP,
+                                                                  n=VOTER_COUNT))
                         rprint(f"[green]done[/green]")
                         
                         self.unified_step['exec_vote_strs'] = exec_votes
@@ -538,7 +550,7 @@ class ToT(Agent):
 
     # TODO: Summarize steps for easy human evaluation and pretty print the task
     def get_feedback(self) -> Optional[FeedbackDict]:
-        feedback_intro = f"\n\nThe task:\n[white][bold]{format_nested_dict(xmlstr2dict(xml_string=self.current_task, client=self.client, depth=6), indent=4)}[/bold][/white]\n\n"
+        feedback_intro = f"\n\nThe task:\n[white][bold]{format_nested_dict(xmlstr2dict(xml_string=cast(str, self.current_task), client=self.client, depth=6), indent=4)}[/bold][/white]\n\n"
         
         rprint()
         
@@ -614,10 +626,10 @@ Here's how it interprets your feedback on the last run:[/{FRIENDLY_COLOR}]
 [bold]Is this an accurate reflection of the meaning you intended?[/bold]""")
         
         if correct_interpretation:
-            return llm_response
+            return cast(str, llm_response)
         else:
             while not correct_interpretation:
-                messages[-1] = get_msg(Role.ASSISTANT, llm_response)
+                messages[-1] = get_msg(Role.ASSISTANT, cast(str, llm_response))
 
                 correction = input("What was incorrect or missing? (type 'c' to exit this loop) > ")
                 if correction.lower() == "c":
@@ -633,7 +645,7 @@ Here's how it interprets your feedback on the last run:[/{FRIENDLY_COLOR}]
 {llm_response}
 [bold]Is this an accurate reflection of the meaning you intended?[/bold]""")
             
-            return llm_response
+            return cast(str, llm_response)
 
 
     def step2str(self) -> tuple[str, str]:
@@ -672,13 +684,16 @@ Here's how it interprets your feedback on the last run:[/{FRIENDLY_COLOR}]
 
         return shuffled_indices, formatted_candidates
     
-    def choose(self, candidates: list[str], scores: list[int]) -> str:
+    def choose(self, candidates: list[str] | ProposalCandidatesList, scores: list[int]) -> str | ToolCallDict:
         best_plan = candidates[np.argmax(scores)]
         dprint(f"{self.PRINT_PREFIX} best_plan:\n{best_plan}")
 
-        return best_plan
+        if isinstance(best_plan, str):
+            return cast(str, best_plan)
+        else:
+            return cast(ToolCallDict, best_plan["dict"])
     
-    def reduce_scores(self, plan_candidates: list[str], candidate_votes: list[str], index_maps: list[list[int]]) -> list[int]:
+    def reduce_scores(self, plan_candidates: list[str] | ProposalCandidatesList, candidate_votes: list[str], index_maps: list[list[int]]) -> list[int]:
         scores = [0] * len(plan_candidates)
 
         assert len(candidate_votes) == len(index_maps)

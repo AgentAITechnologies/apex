@@ -1,5 +1,5 @@
 import re
-from typing import Optional, Union
+from typing import Optional, Union, cast
 
 import glob
 import os
@@ -11,7 +11,7 @@ from rich import print
 
 from utils.enums import Role
 from utils.llm import llm_turn
-from utils.custom_types import NestedStrDict
+from utils.custom_types import NestedStrDict, ToolCallDict
 
 from agents.prompt_management import get_msg
 
@@ -87,9 +87,9 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
                                         "messages": messages},
                                 stop_sequences=[stop_seq],
                                 temperature=1.0,
-                                max_tokens=min(len(xml_string) + TOKEN_GROWTH_ALLOWANCE, MAX_TOKENS_ANTHROPIC))
+                                max_tokens=MAX_TOKENS_ANTHROPIC)
 
-            return xmlstr2dict(fixed_xml, client, depth + 1)
+            return xmlstr2dict(cast(str, fixed_xml), client, depth + 1)
         else:
             error_message = f"Error parsing XML, and fix attempt limit of {depth+1} reached:\n{xml_string}"
             print(f"{PRINT_PREFIX} [red][bold]{error_message}[/bold][/red]")
@@ -116,7 +116,7 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
         
         return result
 
-    return parse_element(root)
+    return cast(dict, parse_element(root))
 
 def dict2xml(d: NestedStrDict, tag: str="root") -> Element:
     """
@@ -215,3 +215,23 @@ def format_nested_dict(d, indent=0):
         else:
             lines.append('  ' * indent + f"{key}: {value}")
     return '\n'.join(lines)
+
+def toolcall2str(tool_call: ToolCallDict) -> str:
+    """
+    Convert a tool call to a string representation in the format <{key}>{value}</{key}>.
+    
+    Args:
+        tool_call: Dictionary containing content, name, and input for a tool call
+    
+    Returns:
+        String representation of the tool call
+    """
+    # Handle content and name directly
+    result = f"<explanation>{tool_call['content']}</explanation>"
+    result += f"<name>{tool_call['name']}</name>"
+    
+    # Handle input dictionary by creating a nested string
+    input_str = " ".join(f'{k}="{v}"' for k, v in cast(dict, tool_call['input']).items())
+    result += f"<input>{input_str}</input>"
+    
+    return result

@@ -1,15 +1,18 @@
+import subprocess
+from typing import Any, TextIO
+
 import os
 import io
 import sys
-from typing import Any, TextIO
+
 import dotenv
 import shutil
-
 from contextlib import redirect_stdout, redirect_stderr
 
 from rich import print
 
 from utils.files import create_directory, sort_filenames_ny_num
+from utils.custom_types import BashConfig, BashResult
 
 
 class TeeIO(io.StringIO):
@@ -120,3 +123,50 @@ class CodeExecutor:
                         exec_result_file.write(f"# </{filename.split('.')[0]}>\n\n")
 
                     os.remove(os.path.join(self.CODE_DIR, filename))
+    
+class BashExecutor:
+    def __init__(self):
+        self.env = os.environ.copy()
+    
+    def execute_bash(self, config: BashConfig) -> tuple[str, str, int]:
+        if config.get('restart', False):
+            return "", "", 0
+        
+        if 'command' not in config:
+            return "", "No command provided", 1
+            
+        stdout_capture = TeeIO(sys.stdout)
+        stderr_capture = io.StringIO()
+            
+        with redirect_stdout(stdout_capture), redirect_stderr(stderr_capture):
+            try:
+                process = subprocess.run(
+                    config['command'],
+                    shell=True,
+                    text=True,
+                    env=self.env,
+                    capture_output=True,
+                    timeout=30
+                )
+                
+                if process.stdout:
+                    stdout_capture.write(process.stdout)
+                if process.stderr:
+                    stderr_capture.write(process.stderr)
+                    
+                return stdout_capture.getvalue(), stderr_capture.getvalue(), process.returncode
+                
+            except subprocess.TimeoutExpired:
+                return "", "Command timed out after 30 seconds", 124
+            except Exception as e:
+                return "", f"Error executing command: {str(e)}", 1
+
+# Create a single instance
+bash_executor = BashExecutor()
+
+def execute_bash(config: BashConfig) -> tuple[str, str, int]:
+    """
+    Wrapper function to use the singleton BashExecutor instance.
+    Returns a tuple of (stdout, stderr, exit_code)
+    """
+    return bash_executor.execute_bash(config)
