@@ -113,7 +113,7 @@ class UI(Agent):
                     dprint(f"{self.PRINT_PREFIX} parsed_response:")
                     dprint(parsed_response)
 
-                    rprint("\n[white][bold]" + parsed_response["response"] + "[/bold][/white]\n")
+                    rprint("\n[bold]" + parsed_response["response"] + "[/bold]\n")
 
                     if os.environ.get("USE_TTS") == "True":
                         tts(parsed_response["response"])
