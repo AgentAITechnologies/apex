@@ -1,4 +1,4 @@
-# Welcome to *apex*™! 🚀
+# Welcome to *apex*! 🚀
 
 ## Project Overview
 *apex* is a system that enables LLM-powered agents to act as the primary interface between the user and system, enabling advanced AI collaboration for any task. It represents a new way to interact with one's PC; simply engage in a conversation as one would a colleague and get work done. Actions will be performed automatically to accomplish tasks a user collaboratively specifies alongside the tool. It also connects to a hosted memory of prior experiences, which allows *apex* to learn from previous experiences. 
@@ -11,7 +11,7 @@ __This architecture is built for the future. It is not constrained by fixed tool
 
 Human-computer interaction has changed dramatically over the history of computer science. From plugboards, to switches, to punch cards, to interactive terminals, and now the mouse and GUI, we have progressively abstracted ourselves away from the truth of the machine so we can be more productive. 
 
-__LLM-powered agents are the frontier of practical AI, but most attempts do not capture the state of the art.__ This is because they are focused on high performance in the short term; they provide LLMs with hardcoded tools along with corresponding use instructions for narrowly defined task scopes. This facilitates reliable performance but narrows capability and is incapable of growth. __By harnessing the cutting edge in research and employing novel techniques, apex™ takes a step beyond what is currently available to the public and aims to enhance user productivity is ways current approaches are incapable of.__
+__LLM-powered agents are the frontier of practical AI, but most attempts do not capture the state of the art.__ This is because they are focused on high performance in the short term; they provide LLMs with hardcoded tools along with corresponding use instructions for narrowly defined task scopes. This facilitates reliable performance but narrows capability and is incapable of growth. __By harnessing the cutting edge in research and employing novel techniques, apex takes a step beyond what is currently available to the public and aims to enhance user productivity is ways current approaches are incapable of.__
 
 ## Installation Instructions
 
