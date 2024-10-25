@@ -7,7 +7,8 @@ import os
 import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element
 
-from rich import print
+from rich import print as rprint
+from utils.console_io import debug_print as dprint
 
 from utils.enums import Role
 from utils.llm import llm_turn
@@ -36,20 +37,71 @@ def files2dict(path: str, extension: str) -> dict[str, str]:
     return retval
 
 def escape_xml(text: str) -> str:
-    def replace(match):
-        char = match.group(0)
-        if char == '&': return '&amp;'
-        if char == '<': return '&lt;'
-        if char == '>': return '&gt;'
-        if char == "'": return '&apos;'
-        if char == '"': return '&quot;'
+    """
+    Escapes XML special characters while preserving existing XML tags.
+    """
+    # First, temporarily protect existing valid tags
+    protected = []
     
-    # Use negative lookbehind and lookahead to avoid escaping < and > in tags
-    pattern = r'(?<!<)([&<>\'""])(?![^<]*>)'
-    return re.sub(pattern, replace, text)
+    def protect_tags(match):
+        protected.append(match.group(0))
+        return f"PROTECTED_{len(protected)-1}_TAG"
+        
+    # Protect all valid XML tags
+    tag_pattern = r'</?[a-zA-Z][a-zA-Z0-9:_.-]*(?:\s+[a-zA-Z0-9:_.-]+(?:=(?:"[^"]*"|\'[^\']*\'))?)*\s*/?>|<!\[CDATA\[.*?\]\]>'
+    protected_text = re.sub(tag_pattern, protect_tags, text, flags=re.DOTALL)
+    
+    # Perform the standard XML escaping
+    escaped_text = protected_text.replace('&', '&amp;') \
+                               .replace('<', '&lt;') \
+                               .replace('>', '&gt;') \
+                               .replace('"', '&quot;') \
+                               .replace("'", '&apos;')
+    
+    # Restore protected tags
+    def restore_tags(match):
+        index = int(match.group(1))
+        return protected[index]
+        
+    final_text = re.sub(r'PROTECTED_(\d+)_TAG', restore_tags, escaped_text)
+    
+    return final_text
 
 def unescape_xml(text: str) -> str:
     return text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&apos;", "'").replace("&quot;", '"')
+
+def unescape_dict_xml(d):
+    """
+    Recursively unescapes XML special characters in all keys and values of a dictionary.
+    
+    Args:
+        d: Input dictionary
+        
+    Returns:
+        Dictionary with all XML special characters unescaped in keys and values
+        
+    Raises:
+        TypeError: If input is not a dictionary
+    """
+    if not isinstance(d, dict):
+        raise TypeError(f"Input must be a dictionary, got {type(d).__name__}")
+        
+    result = {}
+    for key, value in d.items():
+        new_key = unescape_xml(key)
+        
+        # Recursively handle values
+        if isinstance(value, dict):
+            new_value = unescape_dict_xml(value)
+        elif isinstance(value, list):
+            new_value = [unescape_dict_xml(item) if isinstance(item, dict) 
+                        else unescape_xml(item) for item in value]
+        else:
+            new_value = unescape_xml(value)
+            
+        result[new_key] = new_value
+        
+    return result
 
 def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
     def escape_code_blocks(text: str) -> str:
@@ -67,8 +119,8 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
         
     except ET.ParseError:
         if depth < 6:
-            print(f"{PRINT_PREFIX} [yellow][bold]Error parsing XML:\n{xml_string}[/bold][/yellow]")
-            print(f"{PRINT_PREFIX} [yellow][bold]Attempting fix...[/bold][/yellow]")
+            dprint(f"{PRINT_PREFIX} [yellow][bold]Error parsing XML:\n{xml_string}[/bold][/yellow]", force_debug_mode=True)
+            dprint(f"{PRINT_PREFIX} [yellow][bold]Attempting fix...[/bold][/yellow]", force_debug_mode=True)
 
             system_prompt = """You are an expert in the field of programming, and are especially good at finding mistakes XML files.
     Make sure there are no mistakes in the XML file, such as invalid characters, missing or unclosed tags, etc.
@@ -92,7 +144,7 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
             return xmlstr2dict(cast(str, fixed_xml), client, depth + 1)
         else:
             error_message = f"Error parsing XML, and fix attempt limit of {depth+1} reached:\n{xml_string}"
-            print(f"{PRINT_PREFIX} [red][bold]{error_message}[/bold][/red]")
+            rprint(f"{PRINT_PREFIX} [red][bold]{error_message}[/bold][/red]")
             raise RecursionError(error_message)
     
     def parse_element(element: ET.Element) -> Union[dict, str, list, None]:
@@ -185,12 +237,12 @@ def extract_steps(xml_string):
 def get_yes_no_input(prompt: Optional[str] = None, rich_open: str = "", rich_close: str = "", with_cancel: bool = False) -> Optional[bool]:
     if bool(rich_open) ^ bool(rich_close):
         error_message = f"{PRINT_PREFIX} Only one parameter passed for rich (needs either both rich_open and rich_close, or neither)"
-        print(f"[red][bold]{error_message}[/bold][/red]")
+        rprint(f"[red][bold]{error_message}[/bold][/red]")
         raise ValueError(error_message)
 
     while True:
         if prompt:
-            print(rich_open + prompt + rich_close, end=' ')
+            rprint(rich_open + prompt + rich_close, end=' ')
 
         user_input = input(f"(y/n{'/c' if with_cancel else ''}) > ").lower().strip()
 
@@ -201,7 +253,7 @@ def get_yes_no_input(prompt: Optional[str] = None, rich_open: str = "", rich_clo
         elif with_cancel and user_input in ['c', 'cancel']:
             return None
         else:
-            print(f"""Invalid input. Please enter 'y' or 'n'{" (or 'c' for 'cancel')" if with_cancel else ''}.""")
+            rprint(f"""Invalid input. Please enter 'y' or 'n'{" (or 'c' for 'cancel')" if with_cancel else ''}.""")
 
 def remove_escape_key(string: str) -> str:
     return string.replace('^[', '').replace('\x1b', '')

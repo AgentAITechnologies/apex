@@ -23,11 +23,13 @@ from utils.context import get_platform_details
 from utils.custom_exceptions import ExecError
 from utils.enums import Role
 from utils.custom_types import FeedbackDict, PromptsDict, ProposalCandidatesList, ToolCallDict, ToolCallsList, BashConfig, BashResult, PythonConfig, NestedStrDict
-from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, remove_escape_key, format_nested_dict, toolcall2str
+from utils.parsing import dict2xml, escape_xml, unescape_dict_xml, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, remove_escape_key, format_nested_dict, toolcall2str
 from utils.llm import llm_turns
 from utils.files import create_incrementing_directory
-from utils.constants import CLIENT_VERSION, FRIENDLY_COLOR, COMPUTER_TOOLS, get_env_constants
+from utils.constants import CLIENT_VERSION, FRIENDLY_COLOR, COMPUTER_TOOLS, get_env_constants, parse_display_number
 from utils.console_io import ProgressIndicator, debug_print as dprint
+
+from tools.computer import Computer, ScreenDimensions
 
 from anthropic import Anthropic
 
@@ -87,6 +89,11 @@ class ToT(Agent):
 
         self.code_executor = CodeExecutor(prefix=self.PRINT_PREFIX, owner_name=self.name)
         self.bash_executor = BashExecutor()
+        self.computer = Computer(ScreenDimensions(
+                            width=1024,
+                            height=768,
+                            display_number=cast(int, parse_display_number(os.environ.get("DISPLAY")))
+                        ))
 
         self.unified_memory = Memory(prefix=self.PRINT_PREFIX)
         self.unified_steps = []
@@ -318,6 +325,7 @@ class ToT(Agent):
                         tool_call = cast(ToolCallDict, self.unified_step['best_proposition'])
 
                         match tool_call['name']:
+
                             case "bash":
                                 config = cast(BashConfig, tool_call['input'])
                                 execute_bash = True
@@ -356,6 +364,117 @@ class ToT(Agent):
                                     rprint(f"{self.PRINT_PREFIX} Code execution skipped.")
                                     self.unified_step['output'] = "Code execution skipped by user."
                                     self.unified_step['error'] = ""
+
+                            case "computer":
+                                config = tool_call['input']
+                                action = cast(str, config['action'])
+
+                                try:
+                                    match action:
+                                        case "key":
+                                            if 'text' not in config:
+                                                self.unified_step['output'] = ""
+                                                self.unified_step['error'] = "text parameter required for key action"
+                                                return
+
+                                            # Map common key combinations to the format self.computer.press_keys expects
+                                            key_text = cast(str, config['text']).lower()
+                                            if "+" in key_text:
+                                                # Handle key combinations like "ctrl+s", "alt+tab"
+                                                keys = key_text.split("+")
+                                                self.computer.press_keys(keys)
+                                            else:
+                                                # Handle single keys, mapping special key names
+                                                key_mapping = {
+                                                    "return": "enter",
+                                                    "kp_0": "num_0",
+                                                    "kp_1": "num_1",
+                                                    "kp_2": "num_2",
+                                                    "kp_3": "num_3",
+                                                    "kp_4": "num_4",
+                                                    "kp_5": "num_5",
+                                                    "kp_6": "num_6",
+                                                    "kp_7": "num_7",
+                                                    "kp_8": "num_8",
+                                                    "kp_9": "num_9",
+                                                }
+                                                key = key_mapping.get(key_text, key_text)
+                                                self.computer.press_key(key)
+
+                                            self.unified_step['output'] = f"Pressed key: {config['text']}"
+                                            self.unified_step['error'] = ""
+
+                                        case "type":
+                                            if 'text' not in config:
+                                                self.unified_step['output'] = ""
+                                                self.unified_step['error'] = "text parameter required for type action"
+                                                return
+
+                                            self.computer.type_text(config['text'])
+                                            self.unified_step['output'] = f"Typed text: {config['text']}"
+                                            self.unified_step['error'] = ""
+
+                                        case "mouse_move":
+                                            if 'coordinate' not in config or len(config['coordinate']) != 2:
+                                                self.unified_step['output'] = ""
+                                                self.unified_step['error'] = "coordinate parameter [x, y] required for mouse_move action"
+                                                return
+
+                                            x, y = config['coordinate']
+                                            self.computer.move_cursor(x, y)
+                                            self.unified_step['output'] = f"Moved cursor to ({x}, {y})"
+                                            self.unified_step['error'] = ""
+
+                                        case "left_click":
+                                            self.computer.click(button="left")
+                                            self.unified_step['output'] = "Performed left click"
+                                            self.unified_step['error'] = ""
+
+                                        case "left_click_drag":
+                                            if 'coordinate' not in config or len(config['coordinate']) != 2:
+                                                self.unified_step['output'] = ""
+                                                self.unified_step['error'] = "coordinate parameter [x, y] required for left_click_drag action"
+                                                return
+
+                                            x, y = config['coordinate']
+                                            self.computer.click_and_drag(x, y, button="left")
+                                            self.unified_step['output'] = f"Dragged cursor to ({x}, {y})"
+                                            self.unified_step['error'] = ""
+
+                                        case "right_click":
+                                            self.computer.click(button="right")
+                                            self.unified_step['output'] = "Performed right click"
+                                            self.unified_step['error'] = ""
+
+                                        case "middle_click":
+                                            self.computer.click(button="middle")
+                                            self.unified_step['output'] = "Performed middle click"
+                                            self.unified_step['error'] = ""
+
+                                        case "double_click":
+                                            self.computer.double_click()
+                                            self.unified_step['output'] = "Performed double click"
+                                            self.unified_step['error'] = ""
+
+                                        case "screenshot":
+                                            # Note: The actual screenshot functionality would need to be 
+                                            # implemented in the computer tool - this just calls it
+                                            self.computer.take_screenshot()
+                                            self.unified_step['output'] = "Captured screenshot"
+                                            self.unified_step['error'] = ""
+
+                                        case "cursor_position":
+                                            x, y = self.computer.get_cursor_position()
+                                            self.unified_step['output'] = f"Cursor position: ({x}, {y})"
+                                            self.unified_step['error'] = ""
+
+                                        case _:
+                                            self.unified_step['output'] = ""
+                                            self.unified_step['error'] = f"Unknown action: {action}"
+
+                                except Exception as e:
+                                    self.unified_step['output'] = ""
+                                    self.unified_step['error'] = f"Error performing {action}: {str(e)}"
 
                         self.csm.transition("ExecVote", locals())
 
@@ -699,7 +818,7 @@ Here's how it interprets your feedback on the last run:[/{FRIENDLY_COLOR}]
         assert len(candidate_votes) == len(index_maps)
 
         for vote_i, vote in enumerate(candidate_votes):
-            parsed_scores = xmlstr2dict(vote, self.client)
+            parsed_scores = unescape_dict_xml(xmlstr2dict(escape_xml(vote), self.client))
 
             best_candidate_shuffled_idx = int(parsed_scores['best_candidate'])
             worst_candidate_shuffled_idx = int(parsed_scores['worst_candidate'])

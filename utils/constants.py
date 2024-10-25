@@ -1,7 +1,7 @@
 import os
 
 
-CLIENT_VERSION = "0.1"
+CLIENT_VERSION = "0.2"
 
 FRIENDLY_COLOR = "deep_sky_blue1"
 
@@ -45,20 +45,34 @@ def parse_display_number(display_str=None):
         return None
 
 COMPUTER_TOOLS = [
-    {
-        "type": "computer_20241022",
-        "name": "computer",
-        "display_width_px": 1024,
-        "display_height_px": 768,
-        "display_number": parse_display_number(os.environ.get("DISPLAY"))
-    },
-    {
-        "type": "text_editor_20241022",
-        "name": "str_replace_editor"
-    },
+    # {
+    #     "type": "computer_20241022",
+    #     "name": "computer",
+    #     "display_width_px": 1024,
+    #     "display_height_px": 768,
+    #     "display_number": parse_display_number(os.environ.get("DISPLAY"))
+    # },
+    # {
+    #     "type": "text_editor_20241022",
+    #     "name": "str_replace_editor"
+    # },
     {
         "type": "bash_20241022",
         "name": "bash"
+    },
+    {
+        "name": "python",
+        "description": "Execute Python code and return the result",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "The Python code to execute"
+                }
+            },
+            "required": ["code"]
+        }
     }
 ]
 

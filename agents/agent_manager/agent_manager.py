@@ -5,7 +5,7 @@ import os
 import shutil
 import dotenv
 
-from typing import Type, Optional
+from typing import Type, Optional, cast
 from typing_extensions import Self
 
 from rich import print as rprint
@@ -134,11 +134,11 @@ class AgentManager():
 
                     dprint(f"{self.PRINT_PREFIX} self.memory.conversation_history:\n{self.memory.conversation_history}")
 
-                    text = llm_turn(client=self.client,
-                                    prompts={'system': self.memory.get_system_prompt(),
-                                             'messages': self.memory.get_messages()},
-                                    stop_sequences=["</output>"],
-                                    temperature=0.7)
+                    text = cast(str, llm_turn(client=self.client,
+                                              prompts={'system': self.memory.get_system_prompt(),
+                                                       'messages': self.memory.get_messages()},
+                                              stop_sequences=["</output>"],
+                                              temperature=0.7))
                     
                     self.memory.store_llm_response("<output>" + text + "</output>")
 
@@ -166,7 +166,7 @@ class AgentManager():
                         if agent.name == agent_selection['name']:
                             PI.stop()
 
-                            rprint(f"[grey][italic] Assigning agent: [bold]{agent.name}[/bold][/italic][/grey]")
+                            rprint(f"\nAssigning agent: [bold]{agent.name}[/bold]")
 
                             agent.add_task(action)
                             agent.run()
