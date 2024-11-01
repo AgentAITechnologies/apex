@@ -73,6 +73,20 @@ COMPUTER_TOOLS = [
             },
             "required": ["code"]
         }
+    },
+    {
+        "name": "ui",
+        "description": "Send a message to the UI agent and wait for response",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "description": "Message to send to the UI agent"
+                }
+            },
+            "required": ["message"]
+        }
     }
 ]
 
