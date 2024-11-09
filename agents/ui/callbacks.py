@@ -40,7 +40,7 @@ class AssignAction_Callback(StateCallback):
         # Perform actions when entering AssignAction
         pass     
 
-    def on_exit(self, csm, locals: Callable) -> None:
+    def on_exit(self, csm, locals) -> None:
         dprint(f"{self.PRINT_PREFIX} Exiting AssignAction")
         # Perform actions when exiting AssignAction
         pass
@@ -65,4 +65,15 @@ class Start_Callback(StateCallback):
     def on_exit(self, csm, locals) -> None:
         dprint(f"{self.PRINT_PREFIX} Exiting Start")
         # Perform actions when exiting Start
+        pass
+
+class TakeNote_Callback(StateCallback):
+    def on_enter(self, csm, locals) -> None:
+        dprint(f"{self.PRINT_PREFIX} Entering TakeNote")
+        # Perform actions when entering TakeNote
+        pass
+
+    def on_exit(self, csm, locals) -> None:
+        dprint(f"{self.PRINT_PREFIX} Exiting TakeNote")
+        # Perform actions when exiting TakeNote
         pass

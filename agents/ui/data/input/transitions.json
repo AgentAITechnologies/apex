@@ -4,7 +4,12 @@
     
     { "trigger": "AssignAction", "source": "PrintUIMessage", "dest": "AssignAction" },
 
+    { "trigger": "TakeNote", "source": "PrintUIMessage", "dest": "TakeNote" },
+
     { "trigger": "PrintUIMessage", "source": "AssignAction", "dest": "PrintUIMessage" },
+
+    { "trigger": "PrintUIMessage", "source": "TakeNote", "dest": "PrintUIMessage" },
+    { "trigger": "AssignAction", "source": "TakeNote", "dest": "AssignAction" },
 
     { "trigger": "Exit", "source": "AssignAction", "dest": "Exit" }
 

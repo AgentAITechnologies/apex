@@ -6,6 +6,8 @@ from typing import Optional
 
 import dotenv
 
+from utils.constants import get_env_constants
+
 # pygraphviz/graphviz installation is nontrivial on Windows
 if platform.system() == 'Linux':
     import pygraphviz as pgv
@@ -118,8 +120,8 @@ class ConversationStateMachine:
 
         # pygraphviz/graphviz installation is nontrivial on Windows
         # it's also nontrivial for electron apps on Linux apparently
-        # if platform.system() == 'Linux':
-            # self.visualize(owner_class_name)
+        if platform.system() == 'Linux' and get_env_constants()["DEBUG"]:
+            self.visualize(owner_class_name)
 
         self.print_current_state()
 

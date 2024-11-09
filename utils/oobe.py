@@ -121,10 +121,6 @@ def setup_environment_variables(required_keys, env_file='.env'):
 
                         value = str(value)
 
-                    case "NICKNAME":
-                        rprint("[italic]How should I refer to you? > [/italic]", end='')
-                        value = input().strip()
-
                     case "PROVIDE_FEEDBACK":
                         rprint("""
 [deep_sky_blue1][bold]Your feedback on the performance of this virtual assistant is instrumental in advancing its capabilities for all of its users.[/bold]

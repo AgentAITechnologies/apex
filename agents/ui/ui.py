@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import os
+from typing import cast
 import sounddevice as sd
 
 from rich import print as rprint
@@ -16,6 +17,7 @@ from agents.state_management import ConversationStateMachine
 from utils.custom_exceptions import UIError
 from utils.constants import FRIENDLY_COLOR
 
+from utils.files import read_persistent_notes, write_persistent_note
 from utils.parsing import xmlstr2dict
 from utils.tts import tts
 from utils.llm import llm_turn
@@ -83,6 +85,7 @@ class UI(Agent):
 
         self.memory = Memory(environ_path_key="UI_DIR", prefix=self.PRINT_PREFIX)
         self.agent_manager = AgentManager()
+        
         self.agent_manager.register_agent(self)
 
         self.parsed_response = None
@@ -90,8 +93,12 @@ class UI(Agent):
     def run(self):
         rprint(f"[bold][{FRIENDLY_COLOR}]Welcome to [italic]APEX[/italic][/{FRIENDLY_COLOR}][/bold]\n")
 
+        parsed_response = None
+
         while self.csm.current_state.get_hpath() != "Exit":
             dprint(f"{self.PRINT_PREFIX} At: {self.csm.current_state.get_hpath()}")
+
+            persistent_notes = read_persistent_notes()
                 
             match self.csm.current_state.get_hpath():
 
@@ -99,7 +106,10 @@ class UI(Agent):
                     self.csm.transition("PrintUIMessage", locals())
 
                 case "PrintUIMessage":
-                    self.memory.prime_all_prompts(self.csm.current_state.get_hpath(), "UI_DIR", dynamic_metaprompt=" > ")
+                    self.memory.prime_all_prompts(self.csm.current_state.get_hpath(),
+                                                  "UI_DIR",
+                                                  dynamic_metaprompt=" > ",
+                                                  system_frmt={"persistent_notes": persistent_notes})
 
                     text = llm_turn(client=self.client,
                                     prompts={'system': self.memory.get_system_prompt(),
@@ -118,23 +128,45 @@ class UI(Agent):
                     if os.environ.get("USE_TTS") == "True":
                         tts(parsed_response["response"])
 
+                    if "notes" in parsed_response and parsed_response["notes"]:
+                        self.csm.transition("TakeNote", locals())
+                    elif "action" in parsed_response and parsed_response["action"]:
+                        self.csm.transition("AssignAction", locals())
+                    else:
+                        continue
+                
+                case "TakeNote":
+                    if parsed_response and "notes" in parsed_response and parsed_response["notes"]:
+                        dprint(f"{self.PRINT_PREFIX} note: {parsed_response['notes']}")
+                        write_persistent_note(parsed_response["notes"])
+                    else:
+                        error_message = f"{self.PRINT_PREFIX} no notes in parsed_response, despite being in {self.csm.current_state.get_hpath()}"
+                        rprint(f"[red][bold]{error_message}[/bold][/red]")
+                        raise UIError(error_message)
+                        
                     if "action" in parsed_response and parsed_response["action"]:
+                        self.csm.transition("AssignAction", locals())
+                    else:
+                        self.csm.transition("PrintUIMessage", locals())
+
+                case "AssignAction":
+                    if parsed_response and "action" in parsed_response and parsed_response["action"]:
+                        dprint(f"{self.PRINT_PREFIX} action: {parsed_response['action']}")
                         action = parsed_response["action"]
 
                         if action == "REST":
                             rprint(f"Exiting...")
                             sd.wait()
                             exit(0)
-                        else:
-                            self.csm.transition("AssignAction", locals())
-
-                case "AssignAction":
-                    if action:
-                        dprint(f"{self.PRINT_PREFIX} action: {action}")
 
                         self.agent_manager.ipc("RouteAction", {"action": action})
                         self.csm.transition("PrintUIMessage", locals)
                     else:
-                        error_message = f"{self.PRINT_PREFIX} no action to assign"
+                        error_message = f"{self.PRINT_PREFIX} no action in parsed_response, despite being in {self.csm.current_state.get_hpath()}"
                         rprint(f"[red][bold]{error_message}[/bold][/red]")
                         raise UIError(error_message)
+
+                case _:
+                    error_message = f"{self.PRINT_PREFIX} unhandled state: {self.csm.current_state.get_hpath()}"
+                    rprint(f"[red][bold]{error_message}[/bold][/red]")
+                    raise UIError(error_message)

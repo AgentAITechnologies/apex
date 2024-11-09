@@ -174,6 +174,10 @@ class AgentManager():
                             self.csm.transition("AwaitIPC", locals)
 
                             break
+                
+                case _:
+                    rprint(f"[red][bold] unhandled state {self.csm.current_state.get_hpath()} with trigger {trigger}[/bold][/red]")
+                    raise ValueError(f"unhandled state {self.csm.current_state.get_hpath()} with trigger {trigger}")
 
     def register_agent(self, agent: Agent) -> None:
         dprint(f"{self.PRINT_PREFIX} Registering agent: {agent.name}")

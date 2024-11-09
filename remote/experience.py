@@ -59,6 +59,10 @@ def get_experiences(target_vector_name: str, target_vector_query: str, limit: in
 def get_remote_experiences(target_vector_name: str, target_vector_query: str, limit: int) -> Optional[str]:
     experiences = get_experiences(target_vector_name, target_vector_query, limit)
 
+    if isinstance(experiences, dict) and "request_deny_reason" in experiences and "message" in experiences:
+        print(f"[red][bold]{PRINT_PREFIX} {experiences['message']}[/bold][/red]")
+        exit(1)
+
     if experiences:
         if "error" in experiences:
             print(f"[red][bold]{PRINT_PREFIX} Error retrieving remote experiences: {experiences}[/red][/bold]")

@@ -25,7 +25,7 @@ from utils.enums import Role
 from utils.custom_types import FeedbackDict, PromptsDict
 from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, remove_escape_key, format_nested_dict
 from utils.llm import llm_turns
-from utils.files import create_incrementing_directory
+from utils.files import create_incrementing_directory, read_persistent_notes
 from utils.constants import CLIENT_VERSION, FRIENDLY_COLOR, get_env_constants
 from utils.console_io import ProgressIndicator, debug_print as dprint
 
@@ -59,30 +59,38 @@ class ToT(Agent):
 
         self.client = client
 
-        tot_dir, input_dir, output_dir = os.environ.get("TOT_DIR"), os.environ.get("INPUT_DIR"), os.environ.get("OUTPUT_DIR")
-        if tot_dir is None:
+        TOT_DIR, INPUT_DIR, OUTPUT_DIR = os.environ.get("TOT_DIR"), os.environ.get("INPUT_DIR"), os.environ.get("OUTPUT_DIR")
+        if TOT_DIR is None:
             error_message = f"{self.PRINT_PREFIX} TOT_DIR environment variable not set (check .env)"
             rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise KeyError(error_message)
-        if input_dir is None:
+        if INPUT_DIR is None:
             error_message = f"{self.PRINT_PREFIX} INPUT_DIR environment variable not set (check .env)"
             rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise KeyError(error_message)
-        if output_dir is None:
+        if OUTPUT_DIR is None:
             error_message = f"{self.PRINT_PREFIX} OUTPUT_DIR environment variable not set (check .env)"
             rprint(f"[red][bold]{error_message}[/bold][/red]")
             raise KeyError(error_message)
 
-        self.output_dir = os.path.join(tot_dir, output_dir)
+        self.output_dir = os.path.join(TOT_DIR, OUTPUT_DIR)
 
-        with open(os.path.join(tot_dir, input_dir, "states.json")) as file:
+        with open(os.path.join(TOT_DIR, INPUT_DIR, "states.json")) as file:
             state_data = json.load(file)
             dprint(f"{self.PRINT_PREFIX} loaded state_data")
 
-        with open(os.path.join(tot_dir, input_dir, "transitions.json")) as file:
+        with open(os.path.join(TOT_DIR, INPUT_DIR, "transitions.json")) as file:
             transition_data = json.load(file)
             dprint(f"{self.PRINT_PREFIX} loaded transition_data")
 
+        UI_DIR = os.environ.get("UI_DIR")
+        if UI_DIR is None:
+            error_message = f"{self.PRINT_PREFIX} UI_DIR environment variable not set (check .env)"
+            rprint(f"[red][bold]{error_message}[/bold][/red]")
+            raise KeyError(error_message)
+        
+        self.PERSISTENT_NOTES_FILE_PATH = os.path.join(UI_DIR, OUTPUT_DIR, "persistent_notes.xml")
+        
         self.csm = ConversationStateMachine(state_data=state_data, transition_data=transition_data, init_state_path="Plan", prefix=self.PRINT_PREFIX, owner_class_name="ToT")
 
         self.code_executor = CodeExecutor(prefix=self.PRINT_PREFIX, owner_name=self.name)
@@ -144,6 +152,9 @@ class ToT(Agent):
 
             while self.csm.current_state.name != "Done":
                 self.check_interrupt()
+
+                # keep notes up to date in case someone else changes the notes
+                persistent_notes = read_persistent_notes()
                 
                 state_path = self.csm.current_state.get_hpath()
                                             
@@ -152,6 +163,7 @@ class ToT(Agent):
                     case "Plan":                        
                         system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
                                                                                    "task": self.current_task,
+                                                                                   "persistent_notes": persistent_notes,
                                                                                    "remote_examples": REMOTE_EXPERIENCES if REMOTE_EXPERIENCES else ""})
                         
                         user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
@@ -184,7 +196,8 @@ class ToT(Agent):
 
                     case "PlanVote":
                         system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
-                                                                                   "task": self.current_task})
+                                                                                   "task": self.current_task,
+                                                                                   "persistent_notes": persistent_notes})
                         
                         start_seq = self.open_step_tag + "<evaluation>"
                         assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
@@ -201,6 +214,7 @@ class ToT(Agent):
                                                                                                             "task": self.current_task,
                                                                                                             "plan_candidates_str": plan_candidates_str,
                                                                                                             "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
+                            
                             messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
                             prompts.append({"system": system_prompt,
@@ -233,6 +247,7 @@ class ToT(Agent):
 
                     case "Propose":
                         system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": self.current_task,
+                                                                                   "persistent_notes": persistent_notes,
                                                                                    "remote_examples": REMOTE_EXPERIENCES if REMOTE_EXPERIENCES else ""})
 
                         user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
@@ -266,6 +281,7 @@ class ToT(Agent):
 
                     case "ProposeVote":
                         system_prompt = load_system_prompt(state_path, "TOT_DIR", {"step_num": str(self.step_num),
+                                                                                   "persistent_notes": persistent_notes,
                                                                                    "task": self.current_task})
                         
                         start_seq = self.open_step_tag + "<evaluation>"
@@ -353,7 +369,11 @@ class ToT(Agent):
                     case "PlanErrorFix":
                         previous_step = self.unified_steps[-1]
 
-                        frmt = {"step_num": str(self.step_num), "task": self.current_task, "error": previous_step['error'], "output": previous_step['output']}
+                        frmt = {"step_num": str(self.step_num),
+                                "task": self.current_task,
+                                "persistent_notes": persistent_notes,
+                                "error": previous_step['error'],
+                                "output": previous_step['output']}
 
                         system_prompt = load_system_prompt(state_path, "TOT_DIR", frmt)      
                         user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, frmt))
@@ -382,7 +402,9 @@ class ToT(Agent):
                             self.csm.transition("Propose", locals())
 
                     case "ExecVote":
-                        system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": self.current_task})
+                        system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": self.current_task,
+                                                                                   "persistent_notes": persistent_notes,})
+
                         user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                         "task": self.current_task,
                                                                                                         "plan": self.unified_step['best_plan'],
@@ -421,6 +443,11 @@ class ToT(Agent):
                             self.csm.transition("PlanErrorFix", locals())
                         else:
                             self.csm.transition("Plan", locals())
+
+                    case _:
+                        error_message = f"{self.PRINT_PREFIX} unhandled state: {self.csm.current_state.get_hpath()}"
+                        rprint(f"[red][bold]{error_message}[/bold][/red]")
+                        raise ValueError(error_message)
 
         except KeyboardInterrupt as e:
             rprint(f"{self.PRINT_PREFIX}[yellow][bold] Escape key pressed. Stopping the agent[/bold][/yellow]")
