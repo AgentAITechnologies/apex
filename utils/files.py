@@ -17,7 +17,7 @@ def create_incrementing_directory(output_dir, prefix: str) -> str:
     existing_runs = [
         d for d in os.listdir(output_dir) 
         if os.path.isdir(os.path.join(output_dir, d)) and 
-        re.match(f"^{escaped_prefix}\d+$", d)
+        re.match(rf"^{escaped_prefix}\d+$", d)
     ]
     
     # Find the next run number
