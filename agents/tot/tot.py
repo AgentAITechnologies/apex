@@ -620,6 +620,7 @@ If you believe it was optimal, please indicate this."""
         if self.current_task:
             with open(os.path.join(self.log_dir, RESULT_FILENAME), 'r') as logfile:
                 system_prompt = load_system_prompt("ClarifyFeedback", "TOT_DIR", {'task': self.current_task,
+                                                                                  'persistent_notes': read_persistent_notes(),
                                                                                   'logfile': logfile.read()})
         else:
             error_message = "No task to clarify feedback for!"

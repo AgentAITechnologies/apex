@@ -18,7 +18,7 @@ from utils.custom_exceptions import UIError
 from utils.constants import FRIENDLY_COLOR
 
 from utils.files import read_persistent_notes, write_persistent_note
-from utils.parsing import xmlstr2dict
+from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict
 from utils.tts import tts
 from utils.llm import llm_turn
 
@@ -138,7 +138,7 @@ class UI(Agent):
                 case "TakeNote":
                     if parsed_response and "notes" in parsed_response and parsed_response["notes"]:
                         dprint(f"{self.PRINT_PREFIX} note: {parsed_response['notes']}")
-                        write_persistent_note(parsed_response["notes"])
+                        write_persistent_note(xml2xmlstr(dict2xml(parsed_response["notes"])))
                     else:
                         error_message = f"{self.PRINT_PREFIX} no notes in parsed_response, despite being in {self.csm.current_state.get_hpath()}"
                         rprint(f"[red][bold]{error_message}[/bold][/red]")

@@ -63,7 +63,6 @@ def get_persistent_notes_file_path():
     return PERSISTENT_NOTES_FILE_PATH
 
 def read_persistent_notes() -> str:
-
     PERSISTENT_NOTES_FILE_PATH = get_persistent_notes_file_path()
 
     try:
@@ -79,7 +78,6 @@ def read_persistent_notes() -> str:
     return persistent_notes
 
 def write_persistent_note(persistent_note: str) -> None:
-    
     PERSISTENT_NOTES_FILE_PATH = get_persistent_notes_file_path()
 
     try:

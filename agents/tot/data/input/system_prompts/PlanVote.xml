@@ -22,6 +22,7 @@ Please evaluate which are the best and worst candidates (select only a single ca
 </evaluation>
 
 You must select only a SINGLE best candidate and a SINGLE worst candidate.
+KEEP THE STRUCTURE FLAT - NO NESTING OF TAGS
 
 The task you are to complete on behalf of the user is:
 {task}
