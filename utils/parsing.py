@@ -14,7 +14,7 @@ from utils.enums import Role
 from utils.llm import llm_turn
 from utils.custom_types import NestedStrDict, ToolCallDict
 
-from agents.prompt_management import get_msg
+from agents.prompt_management import get_message
 
 from anthropic import Anthropic
 
@@ -132,7 +132,7 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
             assistant_prompt = "<root>"
             stop_seq = "</root>"
 
-            messages = [get_msg(Role.USER, user_prompt), get_msg(Role.ASSISTANT, assistant_prompt)]
+            messages = [get_message(Role.USER, user_prompt), get_message(Role.ASSISTANT, assistant_prompt)]
 
             fixed_xml = llm_turn(client=client,
                                 prompts={"system": system_prompt,

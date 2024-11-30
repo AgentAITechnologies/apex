@@ -7,7 +7,7 @@ from rich import print
 from anthropic.types.message import Message as AnthropicMessage
 from anthropic.types import TextBlock
 
-from agents.prompt_management import load_system_prompt, load_user_prompt, load_assistant_prefill, get_msg
+from agents.prompt_management import load_system_prompt, load_user_prompt, load_assistant_prefill, get_message
 
 from utils.custom_types import Message
 from utils.custom_exceptions import PromptError
@@ -58,7 +58,7 @@ class Memory:
     
     def prime_user_prompt(self, state_path: str, environ_path_key: str, dynamic_metaprompt: Optional[str], frmt: dict[str, str]) -> None:
         user_prompt_text = load_user_prompt(state_path, environ_path_key, dynamic_metaprompt, frmt)
-        user_prompt_msg = get_msg(Role.USER, user_prompt_text)
+        user_prompt_msg = get_message(Role.USER, user_prompt_text)
 
         self.add_msg(user_prompt_msg)
 

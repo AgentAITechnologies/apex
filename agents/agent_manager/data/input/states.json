@@ -16,6 +16,10 @@
 
             {
                 "name": "AssignAgent"
+            },
+
+            {
+                "name": "RouteMessage"
             }
         ]
 }

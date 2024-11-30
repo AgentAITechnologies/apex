@@ -34,3 +34,6 @@ class BashResult(TypedDict):
 
 class PythonConfig(TypedDict):
     code: str
+
+class UIMessageConfig(TypedDict):
+    message: str

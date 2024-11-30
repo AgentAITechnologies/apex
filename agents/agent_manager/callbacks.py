@@ -61,3 +61,14 @@ class AssignAgent_Callback(StateCallback):
         # Perform actions when exiting AssignAgent
         pass
 
+class RouteMessage_Callback(StateCallback):
+    def on_enter(self, csm, locals):
+        dprint(f"{self.PRINT_PREFIX} Entering RouteMessage")
+        # Perform actions when entering RouteMessage
+        pass
+
+    def on_exit(self, csm, locals):
+        dprint(f"{self.PRINT_PREFIX} Exiting RouteMessage")
+        # Perform actions when exiting RouteMessage
+        pass
+

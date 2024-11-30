@@ -11,6 +11,8 @@ REQUIRED_SETUP_KEYS = ["EULA",
                        "PROVIDE_FEEDBACK",
                        "AGENTAI_API_KEY"]
 
+DEFAULT_TEMP = 0.7
+
 def parse_display_number(display_str=None):
     """
     Parse X11 DISPLAY environment variable to extract the display number.
@@ -45,17 +47,6 @@ def parse_display_number(display_str=None):
         return None
 
 COMPUTER_TOOLS = [
-    # {
-    #     "type": "computer_20241022",
-    #     "name": "computer",
-    #     "display_width_px": 1024,
-    #     "display_height_px": 768,
-    #     "display_number": parse_display_number(os.environ.get("DISPLAY"))
-    # },
-    # {
-    #     "type": "text_editor_20241022",
-    #     "name": "str_replace_editor"
-    # },
     {
         "type": "bash_20241022",
         "name": "bash"
@@ -75,17 +66,17 @@ COMPUTER_TOOLS = [
         }
     },
     {
-        "name": "ui",
+        "name": "UI",
         "description": "Send a message to the UI agent and wait for response",
         "input_schema": {
             "type": "object",
             "properties": {
-                "message": {
+                "text": {
                     "type": "string",
-                    "description": "Message to send to the UI agent"
+                    "description": "The contents of the message to send to the UI agent"
                 }
             },
-            "required": ["message"]
+            "required": ["text"]
         }
     }
 ]

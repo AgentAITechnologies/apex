@@ -5,5 +5,13 @@
     { "trigger": "AwaitIPC", "source": "CreateAgent", "dest": "AwaitIPC" },
 
     { "trigger": "AssignAgent", "source": "RouteAction", "dest": "AssignAgent" },
-    { "trigger": "AwaitIPC", "source": "AssignAgent", "dest": "AwaitIPC" }
+    { "trigger": "AwaitIPC", "source": "AssignAgent", "dest": "AwaitIPC" },
+
+    { "trigger": "RouteMessage", "source": "AwaitIPC", "dest": "RouteMessage" },
+    { "trigger": "RouteMessage", "source": "CreateAgent", "dest": "RouteMessage" },
+    { "trigger": "RouteMessage", "source": "AssignAgent", "dest": "RouteMessage" },
+    { "trigger": "RouteMessage", "source": "RouteMessage", "dest": "RouteMessage" },
+    { "trigger": "AwaitIPC", "source": "RouteMessage", "dest": "AwaitIPC" },
+
+    { "trigger": "AwaitIPC", "source": "AwaitIPC", "dest": "AwaitIPC" }
 ]

@@ -47,7 +47,7 @@ def main():
 
     agent_manager = AgentManager(client=client, prefix=PRINT_PREFIX)
 
-    ui = UI(client=client, prefix=PRINT_PREFIX)
+    ui = UI(client=client, prefix=PRINT_PREFIX, agent_manager=agent_manager)
     ui.run()
 
 

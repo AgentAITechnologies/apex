@@ -12,9 +12,10 @@ from rich import print as rprint
 import numpy as np
 
 from agents.agent import Agent
+from agents.message_queue import MessageQueue
 from agents.state_management import ConversationStateMachine
 from agents.execution_management.execution_management import BashExecutor, CodeExecutor
-from agents.prompt_management import load_system_prompt, load_user_prompt, get_msg
+from agents.prompt_management import load_system_prompt, load_user_prompt, get_message
 
 from agents.memory import Memory
 
@@ -22,7 +23,7 @@ from remote.experience import get_remote_experiences, stage_experience
 from utils.context import get_platform_details
 from utils.custom_exceptions import ExecError
 from utils.enums import Role
-from utils.custom_types import FeedbackDict, PromptsDict, ProposalCandidatesList, ToolCallDict, ToolCallsList, BashConfig, BashResult, PythonConfig, NestedStrDict
+from utils.custom_types import FeedbackDict, PromptsDict, ProposalCandidatesList, ToolCallDict, ToolCallsList, BashConfig, BashResult, PythonConfig, NestedStrDict, UIMessageConfig
 from utils.parsing import dict2xml, escape_xml, unescape_dict_xml, xml2xmlstr, xmlstr2dict, extract_language_and_code, get_yes_no_input, remove_escape_key, format_nested_dict, toolcall2str
 from utils.llm import llm_turns
 from utils.files import create_incrementing_directory
@@ -50,14 +51,15 @@ TEMP = 0.7
 class ToT(Agent):
     PRINT_PREFIX = "[blue][bold][ToT][/bold][/blue]"
 
-    def __init__(self, client: Anthropic, name: str, description: str, tasks: list[dict]) -> None:
+    def __init__(self, client: Anthropic, name: str, description: str, tasks: list[dict], agent_manager) -> None:
         dotenv.load_dotenv()
 
         super().__init__(client=client,
                          prefix=self.PRINT_PREFIX,
                          name=name,
                          description=description,
-                         tasks=tasks)
+                         tasks=tasks,
+                         agent_manager=agent_manager)
 
         self.client = client
 
@@ -86,6 +88,8 @@ class ToT(Agent):
             dprint(f"{self.PRINT_PREFIX} loaded transition_data")
 
         self.csm = ConversationStateMachine(state_data=state_data, transition_data=transition_data, init_state_path="Plan", prefix=self.PRINT_PREFIX, owner_class_name="ToT")
+        self.agent_manager = agent_manager
+        self.message_queue = MessageQueue()
 
         self.code_executor = CodeExecutor(prefix=self.PRINT_PREFIX, owner_name=self.name)
         self.bash_executor = BashExecutor()
@@ -162,12 +166,12 @@ class ToT(Agent):
                                                                                    "task": self.current_task,
                                                                                    "remote_examples": REMOTE_EXPERIENCES if REMOTE_EXPERIENCES else ""})
                         
-                        user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
+                        user_prompt = get_message(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                         "task": self.current_task,
                                                                                                         "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
                         
                         start_seq = self.open_step_tag + "<plan>"
-                        assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
+                        assistant_prompt = get_message(Role.ASSISTANT, start_seq)
 
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
@@ -195,7 +199,7 @@ class ToT(Agent):
                                                                                    "task": self.current_task})
                         
                         start_seq = self.open_step_tag + "<evaluation>"
-                        assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
+                        assistant_prompt = get_message(Role.ASSISTANT, start_seq)
                         
                         plan_index_maps: list[list[int]] = []
                         prompts: list[PromptsDict] = []
@@ -205,7 +209,7 @@ class ToT(Agent):
 
                             shuffled_indices, plan_candidates_str = self.format_candidates(plan_candidates)
 
-                            user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
+                            user_prompt = get_message(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                             "task": self.current_task,
                                                                                                             "plan_candidates_str": plan_candidates_str,
                                                                                                             "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
@@ -243,7 +247,7 @@ class ToT(Agent):
                         system_prompt = load_system_prompt(state_path, "TOT_DIR", {"task": self.current_task,
                                                                                    "remote_examples": REMOTE_EXPERIENCES if REMOTE_EXPERIENCES else ""})
 
-                        user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
+                        user_prompt = get_message(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                         "task": self.current_task,
                                                                                                         "plan": cast(str, self.unified_step['best_plan']),
                                                                                                         "suffix": ", taking into consideration the results of what you have already done in prior steps:" if self.step_num > 1 else ":"}))
@@ -275,7 +279,7 @@ class ToT(Agent):
                                                                                    "task": self.current_task})
                         
                         start_seq = self.open_step_tag + "<evaluation>"
-                        assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
+                        assistant_prompt = get_message(Role.ASSISTANT, start_seq)
 
                         proposal_index_maps: list[list[int]] = []
                         prompts: list[PromptsDict] = []
@@ -285,7 +289,7 @@ class ToT(Agent):
 
                             shuffled_indices, proposal_candidates_str = self.format_candidates(cast(list[str], [prop["str"] for prop in proposal_candidates]))
 
-                            user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
+                            user_prompt = get_message(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
                                                                                                             "task": self.current_task,
                                                                                                             "plan": cast(str, self.unified_step['best_plan']),
                                                                                                             "proposal_candidates_str": proposal_candidates_str,
@@ -365,131 +369,25 @@ class ToT(Agent):
                                     self.unified_step['output'] = "Code execution skipped by user."
                                     self.unified_step['error'] = ""
 
-                                """
-                            case "computer":
-                                config = tool_call['input']
-                                action = cast(str, config['action'])
-
-                                try:
-                                    match action:
-                                        case "key":
-                                            if 'text' not in config:
-                                                self.unified_step['output'] = ""
-                                                self.unified_step['error'] = "text parameter required for key action"
-                                                return
-
-                                            # Map common key combinations to the format self.computer.press_keys expects
-                                            key_text = cast(str, config['text']).lower()
-                                            if "+" in key_text:
-                                                # Handle key combinations like "ctrl+s", "alt+tab"
-                                                keys = key_text.split("+")
-                                                self.computer.press_keys(keys)
-                                            else:
-                                                # Handle single keys, mapping special key names
-                                                key_mapping = {
-                                                    "return": "enter",
-                                                    "kp_0": "num_0",
-                                                    "kp_1": "num_1",
-                                                    "kp_2": "num_2",
-                                                    "kp_3": "num_3",
-                                                    "kp_4": "num_4",
-                                                    "kp_5": "num_5",
-                                                    "kp_6": "num_6",
-                                                    "kp_7": "num_7",
-                                                    "kp_8": "num_8",
-                                                    "kp_9": "num_9",
-                                                }
-                                                key = key_mapping.get(key_text, key_text)
-                                                self.computer.press_key(key)
-
-                                            self.unified_step['output'] = f"Pressed key: {config['text']}"
-                                            self.unified_step['error'] = ""
-
-                                        case "type":
-                                            if 'text' not in config:
-                                                self.unified_step['output'] = ""
-                                                self.unified_step['error'] = "text parameter required for type action"
-                                                return
-
-                                            self.computer.type_text(config['text'])
-                                            self.unified_step['output'] = f"Typed text: {config['text']}"
-                                            self.unified_step['error'] = ""
-
-                                        case "mouse_move":
-                                            if 'coordinate' not in config or len(config['coordinate']) != 2:
-                                                self.unified_step['output'] = ""
-                                                self.unified_step['error'] = "coordinate parameter [x, y] required for mouse_move action"
-                                                return
-
-                                            x, y = config['coordinate']
-                                            self.computer.move_cursor(x, y)
-                                            self.unified_step['output'] = f"Moved cursor to ({x}, {y})"
-                                            self.unified_step['error'] = ""
-
-                                        case "left_click":
-                                            self.computer.click(button="left")
-                                            self.unified_step['output'] = "Performed left click"
-                                            self.unified_step['error'] = ""
-
-                                        case "left_click_drag":
-                                            if 'coordinate' not in config or len(config['coordinate']) != 2:
-                                                self.unified_step['output'] = ""
-                                                self.unified_step['error'] = "coordinate parameter [x, y] required for left_click_drag action"
-                                                return
-
-                                            x, y = config['coordinate']
-                                            self.computer.click_and_drag(x, y, button="left")
-                                            self.unified_step['output'] = f"Dragged cursor to ({x}, {y})"
-                                            self.unified_step['error'] = ""
-
-                                        case "right_click":
-                                            self.computer.click(button="right")
-                                            self.unified_step['output'] = "Performed right click"
-                                            self.unified_step['error'] = ""
-
-                                        case "middle_click":
-                                            self.computer.click(button="middle")
-                                            self.unified_step['output'] = "Performed middle click"
-                                            self.unified_step['error'] = ""
-
-                                        case "double_click":
-                                            self.computer.double_click()
-                                            self.unified_step['output'] = "Performed double click"
-                                            self.unified_step['error'] = ""
-
-                                        case "screenshot":
-                                            # Note: The actual screenshot functionality would need to be 
-                                            # implemented in the computer tool - this just calls it
-                                            self.computer.take_screenshot()
-                                            self.unified_step['output'] = "Captured screenshot"
-                                            self.unified_step['error'] = ""
-
-                                        case "cursor_position":
-                                            x, y = self.computer.get_cursor_position()
-                                            self.unified_step['output'] = f"Cursor position: ({x}, {y})"
-                                            self.unified_step['error'] = ""
-
-                                        case _:
-                                            self.unified_step['output'] = ""
-                                            self.unified_step['error'] = f"Unknown action: {action}"
-
-                                except Exception as e:
-                                    self.unified_step['output'] = ""
-                                    self.unified_step['error'] = f"Error performing {action}: {str(e)}"
-                                """
+                            case "UI":
+                                config = cast(UIMessageConfig, tool_call['input'])
+                                message_text = config['text']
+                                self.agent_manager.ipc("RouteMessage", {"src_agent_name": self.name,
+                                                                        "dest_agent_name": "UI",
+                                                                        "text": message_text})
 
                         self.csm.transition("ExecVote", locals())
 
                     case "PlanErrorFix":
-                        previous_step = self.unified_steps[-1]
+                        previous_step: dict = self.unified_steps[-1]
 
-                        frmt = {"step_num": str(self.step_num), "task": self.current_task, "error": previous_step['error'], "output": previous_step['output']}
+                        frmt = {"step_num": str(self.step_num), "task": self.current_task, "error": previous_step.get("error", ""), "output": previous_step.get('output')}
 
                         system_prompt = load_system_prompt(state_path, "TOT_DIR", frmt)      
-                        user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, frmt))
+                        user_prompt = get_message(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, frmt))
                         
                         start_seq = self.open_step_tag + "<plan>"
-                        assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
+                        assistant_prompt = get_message(Role.ASSISTANT, start_seq)
 
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
@@ -516,15 +414,15 @@ class ToT(Agent):
 
                         best_prop_str = xml2xmlstr(dict2xml(cast(NestedStrDict, self.unified_step['best_proposition'])))
 
-                        user_prompt = get_msg(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
-                                                                                                        "task": self.current_task,
-                                                                                                        "plan": cast(str, self.unified_step['best_plan']),
-                                                                                                        "implementation": best_prop_str,
-                                                                                                        "output": self.unified_step['output'],
-                                                                                                        "error": self.unified_step['error']}))
+                        user_prompt = get_message(Role.USER, load_user_prompt(state_path, "TOT_DIR", None, {"step_num": str(self.step_num),
+                                                                                                            "task": self.current_task,
+                                                                                                            "plan": cast(str, self.unified_step['best_plan']),
+                                                                                                            "implementation": best_prop_str,
+                                                                                                            "output": self.unified_step.get("output", ""),
+                                                                                                            "error": self.unified_step.get("error", "")}))
                         
                         start_seq = self.open_step_tag + "<evaluation>"
-                        assistant_prompt = get_msg(Role.ASSISTANT, start_seq)
+                        assistant_prompt = get_message(Role.ASSISTANT, start_seq)
 
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
                         
@@ -559,6 +457,16 @@ class ToT(Agent):
             rprint(f"{self.PRINT_PREFIX}[yellow][bold] Escape key pressed. Stopping the agent[/bold][/yellow]")
             self.finalize_task()
 
+    def handle_message(self) -> None:
+        if self.message_queue.has_message(self.name):
+            ipc_message = self.message_queue.pop(self.name)
+
+            self.unified_memory.conversation_history.append(get_message(Role.USER, f"Received a message from agent \"{ipc_message['src_agent_name']}\":\n{ipc_message['text']}"))
+            self.unified_memory.conversation_history.append(get_message(Role.ASSISTANT, f"Got it. I'll continue with the task keeping this in mind."))
+        else:
+            rprint(f"[red][bold]{self.PRINT_PREFIX} handle_message() called, but no message in the queue")
+            raise ValueError("No message in the queue")
+
     def finalize_task(self) -> None:
         if self.current_task:
             self.code_executor.condense_code_files(self.current_task)
@@ -586,8 +494,8 @@ class ToT(Agent):
         unified_user_str, unified_assistant_str = self.step2str()
         self.log_step(unified_user_str, unified_assistant_str)
 
-        unified_user_msg = get_msg(Role.USER, unified_user_str)
-        unified_assistant_msg = get_msg(Role.ASSISTANT, unified_assistant_str)
+        unified_user_msg = get_message(Role.USER, unified_user_str)
+        unified_assistant_msg = get_message(Role.ASSISTANT, unified_assistant_str)
 
         self.unified_memory.add_msg(unified_user_msg)
         self.unified_memory.add_msg(unified_assistant_msg)
@@ -732,10 +640,10 @@ If you believe it was optimal, please indicate this."""
             rprint(f"[red][bold]{self.PRINT_PREFIX} {error_message}[/bold][/red]")
             raise ValueError(error_message)
         
-        user_prompt = get_msg(Role.USER, load_user_prompt("ClarifyFeedback", "TOT_DIR", None, {'success': feedback['success'],
+        user_prompt = get_message(Role.USER, load_user_prompt("ClarifyFeedback", "TOT_DIR", None, {'success': feedback['success'],
                                                                                                'details': feedback['details']}))
         
-        assistant_prompt = get_msg(Role.ASSISTANT, "<reflection>")
+        assistant_prompt = get_message(Role.ASSISTANT, "<reflection>")
         
         messages = [user_prompt, assistant_prompt]
         
@@ -750,14 +658,14 @@ Here's how it interprets your feedback on the last run:[/{FRIENDLY_COLOR}]
             return cast(str, llm_response)
         else:
             while not correct_interpretation:
-                messages[-1] = get_msg(Role.ASSISTANT, cast(str, llm_response))
+                messages[-1] = get_message(Role.ASSISTANT, cast(str, llm_response))
 
                 correction = input("What was incorrect or missing? (type 'c' to exit this loop) > ")
                 if correction.lower() == "c":
                     return None
 
-                messages.append(get_msg(Role.USER, "<correction>" + correction + "</correction>"))
-                messages.append(get_msg(Role.ASSISTANT, """Here's a revised interpretation of your feedback based on your correction:
+                messages.append(get_message(Role.USER, "<correction>" + correction + "</correction>"))
+                messages.append(get_message(Role.ASSISTANT, """Here's a revised interpretation of your feedback based on your correction:
 <revised_reflection>"""))
                 
                 llm_response = llm_turns(self.client, {'system': system_prompt, 'messages': messages}, ["</revised_reflection>"], TEMP, 1)[0]
@@ -782,10 +690,10 @@ Here's how it interprets your feedback on the last run:[/{FRIENDLY_COLOR}]
 {self.unified_step['best_proposition']}
 </implementation>
 <stdout>
-{self.unified_step['output']}
+{self.unified_step.get("output", "")}
 </stdout>
 <stderr>
-{self.unified_step['error']}
+{self.unified_step.get("error", "")}
 </stderr>"""
 
         return unified_user_str, unified_assistant_str

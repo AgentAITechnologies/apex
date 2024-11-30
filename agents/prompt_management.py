@@ -98,24 +98,24 @@ def load_system_prompt(state_path: str, environ_path_key: str, frmt: dict[str, s
 
     return sys_prompt
 
-def load_assistant_prefill(prefill: str) -> Message:
-    msg = get_msg(Role.ASSISTANT, prefill)
-    return msg
-
-def load_all_prompts(state_path: str, environ_path_key: str, dynamic_metaprompt: Optional[str] = None, system_frmt: dict[str, str] = {}, user_frmt: dict[str, str] = {}, start_seq: str = "<output>") -> dict:
-    system_prompt = load_system_prompt(state_path, environ_path_key, system_frmt)
-
-    user_prompt_text = load_user_prompt(state_path, environ_path_key, dynamic_metaprompt, user_frmt)
-    user_prompt = get_msg(Role.USER, user_prompt_text)
-
-    assistant_prefill = load_assistant_prefill(start_seq)
-
-    return {"system": system_prompt, "user": user_prompt, "assistant": assistant_prefill}
-
-def get_msg(role: Role, content: str) -> Message:
+def get_message(role: Role, content: str) -> Message:
     msg: Message = {
         "role": role.value,
         "content": content
     }
 
     return msg
+
+def load_assistant_prefill(prefill: str) -> Message:
+    msg = get_message(Role.ASSISTANT, prefill)
+    return msg
+
+def load_all_prompts(state_path: str, environ_path_key: str, dynamic_metaprompt: Optional[str] = None, system_frmt: dict[str, str] = {}, user_frmt: dict[str, str] = {}, start_seq: str = "<output>") -> dict:
+    system_prompt = load_system_prompt(state_path, environ_path_key, system_frmt)
+
+    user_prompt_text = load_user_prompt(state_path, environ_path_key, dynamic_metaprompt, user_frmt)
+    user_prompt = get_message(Role.USER, user_prompt_text)
+
+    assistant_prefill = load_assistant_prefill(start_seq)
+
+    return {"system": system_prompt, "user": user_prompt, "assistant": assistant_prefill}

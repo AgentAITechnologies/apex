@@ -14,6 +14,7 @@ from utils.console_io import debug_print as dprint
 from agents.agent import Agent
 from agents.state_management import ConversationStateMachine
 from agents.memory import Memory
+from agents.message_queue import MessageQueue
 from agents.tot.tot import ToT
 
 from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict
@@ -77,6 +78,7 @@ class AgentManager():
 
             self.csm = ConversationStateMachine(state_data=state_data, transition_data=transition_data, init_state_path="AwaitIPC", prefix=self.PRINT_PREFIX, owner_class_name="AgentManager")
             self.memory = Memory(environ_path_key="AGTMGR_DIR", prefix=self.PRINT_PREFIX)
+            self.message_queue = MessageQueue(prefix=self.PRINT_PREFIX)
 
             self.parsed_response = None
 
@@ -153,7 +155,8 @@ class AgentManager():
                     new_agent = ToT(client=self.client,
                                     name=new_agent_info['name'],
                                     description=new_agent_info['description'],
-                                    tasks=[action])
+                                    tasks=[action],
+                                    agent_manager=self)
                     
                     self.register_agent(new_agent)
 
@@ -173,11 +176,30 @@ class AgentManager():
 
                             self.csm.transition("AwaitIPC", locals)
 
+                case "RouteMessage":
+                    src_agent_name, dest_agent_name = data['src_agent_name'], data['dest_agent_name']
+                    text = data['text']
+                    
+                    dest_agent = None
+                    for agent in self.agents:
+                        if agent.name == dest_agent_name:
+                            dest_agent = agent
                             break
+
+                    if not dest_agent:
+                        error_message = f"{self.PRINT_PREFIX} Count not route message from {src_agent_name}: agent '{dest_agent_name}' not found"
+                        rprint(f"[bold][red]{error_message}[/red][/bold]")
+                        raise ValueError(error_message)
+
+                    self.message_queue.push(src_agent_name, dest_agent.name, text)
+                    dest_agent.handle_message()
+                    
+                    self.csm.transition("AwaitIPC", locals())
 
     def register_agent(self, agent: Agent) -> None:
         dprint(f"{self.PRINT_PREFIX} Registering agent: {agent.name}")
         self.agents.append(agent)
+        self.message_queue.register_mailbox(agent.name)
 
     def get_agents_xmlstr(self) -> str:
         agents_xmlstr: str = ""
