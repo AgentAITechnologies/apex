@@ -121,7 +121,7 @@ class ToT(Agent):
             dprint(f"{self.PRINT_PREFIX} task:\n{self.current_task}")
 
             rprint(f"getting remote experiences", end="")
-            with ProgressIndicator() as PI:
+            with ProgressIndicator() as _:
                 REMOTE_EXPERIENCES = get_remote_experiences(target_vector_name="task",
                                                             target_vector_query=self.current_task,
                                                             limit=REMOTE_EXAMPLE_COUNT)
@@ -173,7 +173,7 @@ class ToT(Agent):
 
                         # re-implement set() optimizaiton after verifying it doesn't interfere with shuffling logic
                         rprint(f"planning", end="")
-                        with ProgressIndicator() as PI:               
+                        with ProgressIndicator() as _:               
                             plan_candidates = cast(list[str], llm_turns(client=self.client,
                                                                         prompts={"system": system_prompt,
                                                                                  "messages": messages},
@@ -216,7 +216,7 @@ class ToT(Agent):
                             plan_index_maps.append(shuffled_indices)
 
                         rprint(f"voting", end="")
-                        with ProgressIndicator() as PI:
+                        with ProgressIndicator() as _:
                             plan_votes = cast(list[str], llm_turns(client=self.client,
                                                                    prompts=prompts,
                                                                    stop_sequences=["</evaluation>"],
@@ -252,7 +252,7 @@ class ToT(Agent):
 
                         # re-implement set() optimizaiton after verifying it doesn't interfere with shuffling logic
                         rprint(f"proposing implementations", end="")
-                        with ProgressIndicator() as PI:
+                        with ProgressIndicator() as _:
                             raw_proposals = cast(ToolCallsList, llm_turns(client=self.client,
                                                                           prompts={"system": system_prompt,
                                                                                    "messages": messages},
@@ -298,7 +298,7 @@ class ToT(Agent):
                             proposal_index_maps.append(shuffled_indices)
 
                         rprint(f"voting on implementations", end="")
-                        with ProgressIndicator() as PI:
+                        with ProgressIndicator() as _:
                             proposal_votes = llm_turns(client=self.client,
                                                        prompts=prompts,
                                                        stop_sequences=["</evaluation>"],
@@ -365,6 +365,7 @@ class ToT(Agent):
                                     self.unified_step['output'] = "Code execution skipped by user."
                                     self.unified_step['error'] = ""
 
+                                """
                             case "computer":
                                 config = tool_call['input']
                                 action = cast(str, config['action'])
@@ -475,6 +476,7 @@ class ToT(Agent):
                                 except Exception as e:
                                     self.unified_step['output'] = ""
                                     self.unified_step['error'] = f"Error performing {action}: {str(e)}"
+                                """
 
                         self.csm.transition("ExecVote", locals())
 
@@ -492,7 +494,7 @@ class ToT(Agent):
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
                         rprint(f"planning a fix", end="")
-                        with ProgressIndicator() as PI:                   
+                        with ProgressIndicator() as _:                   
                             plan_candidates = cast(list[str], llm_turns(client=self.client,
                                                                         prompts={"system": system_prompt,
                                                                                  "messages": messages},
@@ -527,7 +529,7 @@ class ToT(Agent):
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
                         
                         rprint(f"voting on completion status", end="")
-                        with ProgressIndicator() as PI:
+                        with ProgressIndicator() as _:
                             exec_votes = cast(list[str], llm_turns(client=self.client,
                                                                   prompts={"system": system_prompt,
                                                                            "messages": messages},
@@ -628,7 +630,7 @@ class ToT(Agent):
         if PROVIDE_FEEDBACK:
 
             rprint(f"\nsending feedback to experience platform", end="")
-            with ProgressIndicator() as PI:
+            with ProgressIndicator() as _:
 
                 with open(LOGFILE_PATH, 'r') as logfile:
                     logfile_text = logfile.read()
