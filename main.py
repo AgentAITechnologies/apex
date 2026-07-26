@@ -113,18 +113,37 @@ if __name__ == "__main__":
                     user_approve = get_yes_no_input(user_message)
 
                     if user_approve:
-                        response = requests.post(AGENTAI_API_URL+"/client_error", data=json.dumps(error), headers={'Authorization': AGENTAI_API_KEY,
-                                                                                                                   'Content-Type': 'application/json'})
-                    
-                        dprint(f"{PRINT_PREFIX} {response}")
+                        try:
+                            response = requests.post(
+                                AGENTAI_API_URL + "/client_error",
+                                data=json.dumps(error),
+                                headers={
+                                    'Authorization': AGENTAI_API_KEY,
+                                    'Content-Type': 'application/json'
+                                },
+                                timeout=5
+                            )
+                            dprint(f"{PRINT_PREFIX} {response}")
+                        except Exception as req_err:
+                            rprint(f"[yellow]{PRINT_PREFIX} Unable to send crash telemetry: {req_err}[/yellow]")
 
                         exit(2)
                     else:
                         rprint("The details of this crash will not be shared.")
 
-                        response = requests.post(AGENTAI_API_URL+"/client_error", data=json.dumps({"type": "USER_PRIVATE"}), headers={'Authorization': AGENTAI_API_KEY,
-                                                                                                                                      'Content-Type': 'application/json'})
-                        
+                        try:
+                            response = requests.post(
+                                AGENTAI_API_URL + "/client_error",
+                                data=json.dumps({"type": "USER_PRIVATE"}),
+                                headers={
+                                    'Authorization': AGENTAI_API_KEY,
+                                    'Content-Type': 'application/json'
+                                },
+                                timeout=5
+                            )
+                        except Exception as req_err:
+                            dprint(f"{PRINT_PREFIX} Unable to send telemetry: {req_err}")
+
                         exit(1)
                 else:
                     # TODO: Provide reporting tool for errors that may take place befor api key is aquired

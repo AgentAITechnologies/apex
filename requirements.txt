@@ -19,6 +19,7 @@ typing-extensions
 chromadb
 fastembed
 langchain-community
+langchain-chroma
 
 # Audio processing
 sounddevice

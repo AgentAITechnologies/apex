@@ -656,12 +656,30 @@ class ToT(Agent):
             with open(LOGFILE_PATH, 'r') as logfile:
                 logfile_text = logfile.read()
 
-            raw_log: dict = xmlstr2dict(logfile_text, self.client)
+            raw_log = xmlstr2dict(logfile_text, self.client)
 
-            if "details" in raw_log:
-                details_str = f"<details>{raw_log['details']}</details>"
+            if isinstance(raw_log, dict):
+                raw_task = raw_log.get('task', '')
+                if isinstance(raw_task, dict):
+                    task_str = raw_task.get('description', xml2xmlstr(dict2xml(raw_task)))
+                elif isinstance(raw_task, str):
+                    task_str = raw_task
+                else:
+                    task_str = str(raw_task) if raw_task is not None else (self.current_task or '')
+
+                if 'details' in raw_log and raw_log['details']:
+                    if isinstance(raw_log['details'], dict):
+                        details_str = xml2xmlstr(dict2xml(raw_log['details'], tag="details"), no_root=False)
+                    else:
+                        details_str = f"<details>{raw_log['details']}</details>"
+                else:
+                    details_str = ""
             else:
+                task_str = self.current_task or ''
                 details_str = ""
+
+            if not task_str and self.current_task:
+                task_str = self.current_task
 
             success_val = feedback['success'] if feedback and 'success' in feedback else True
             details_val = feedback['details'] if feedback and 'details' in feedback else ""
@@ -669,7 +687,7 @@ class ToT(Agent):
 
             log = {
                 "agent_name": self.name,
-                "task": f"<task><description>{raw_log['task']}</description>{details_str}</task>",
+                "task": f"<task><description>{task_str}</description>{details_str}</task>",
                 "trace": self.trace,
                 "success": success_val,
                 "feedback": details_val,

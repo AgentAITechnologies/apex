@@ -13,6 +13,8 @@ from utils.custom_types import NestedStrDict
 @pytest.mark.parametrize("xmlstr, client, expected", [
     ("<response>This is what will be read aloud.</response><action>None</action>", None, { "response": "This is what will be read aloud.", "action": None }),
 
+    ("<response>Not stored in <completed_task> summaries.</response><action>None</action><notes>None</notes>", None, { "response": "Not stored in <completed_task> summaries.", "action": None, "notes": None }),
+
     ("""<response>Okay, I'll get to writing the story now and email it to tim.jones@mail.com when complete. Is there anything else I can help with?</response>
 <action>
 <task>Write a short story about a friendly cat and email it</task>

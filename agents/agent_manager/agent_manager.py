@@ -125,7 +125,8 @@ class AgentManager():
                     agent_selection = xmlstr2dict(text, self.client)
                     dprint(f"{self.PRINT_PREFIX} agent_selection:\n{agent_selection}")
 
-                    if not agent_selection['name']:
+                    selected_name = agent_selection.get('name') if isinstance(agent_selection, dict) else None
+                    if not selected_name or selected_name == 'None':
                         self.csm.transition("CreateAgent", locals())
                     else:
                         self.csm.transition("AssignAgent", locals())
@@ -149,11 +150,14 @@ class AgentManager():
                     PI.stop()
                     rprint("[green]done[/green]")
 
-                    rprint(f"Creating agent: [bold]{new_agent_info['name']}[/bold]")
+                    agent_name = new_agent_info.get('name', 'New Agent') if isinstance(new_agent_info, dict) else 'New Agent'
+                    agent_desc = new_agent_info.get('description', '') if isinstance(new_agent_info, dict) else ''
+
+                    rprint(f"Creating agent: [bold]{agent_name}[/bold]")
 
                     new_agent = ToT(client=self.client,
-                                    name=new_agent_info['name'],
-                                    description=new_agent_info['description'],
+                                    name=agent_name,
+                                    description=agent_desc,
                                     tasks=[action])
                     
                     self.register_agent(new_agent)
@@ -176,7 +180,8 @@ class AgentManager():
                     
                 case "AssignAgent":
                     for agent in self.agents:
-                        if agent.name == agent_selection['name']:
+                        selected_name = agent_selection.get('name') if isinstance(agent_selection, dict) else None
+                        if agent.name == selected_name:
                             PI.stop()
 
                             rprint(f"[grey][italic] Assigning agent: [bold]{agent.name}[/bold][/italic][/grey]")

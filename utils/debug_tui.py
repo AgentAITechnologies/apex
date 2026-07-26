@@ -127,7 +127,7 @@ class DebugTUI:
     def _get_vector_store(self):
         try:
             from langchain_community.embeddings import FastEmbedEmbeddings
-            from langchain_community.vectorstores import Chroma
+            from langchain_chroma import Chroma
 
             output_dir = os.environ.get("OUTPUT_DIR", "data/output/")
             os.makedirs(output_dir, exist_ok=True)

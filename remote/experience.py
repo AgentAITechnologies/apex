@@ -5,7 +5,7 @@ from typing import Optional
 import requests
 
 from rich import print
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_community.embeddings import FastEmbedEmbeddings
 from langchain_core.documents import Document
 
