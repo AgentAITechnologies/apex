@@ -175,22 +175,41 @@ def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict | list[PromptsDic
                     llm_call_anthropic_futures_to_texts(texts, futures)
 
             elif isinstance(client, OpenAI):
-                llm_response = llm_call_openai(client, prompts['system'], prompts['messages'], stop_sequences, temperature, n, max_tokens)
+                max_n = int(os.environ.get("OPENAI_MAX_N", "1"))
 
-                dprint(f"{PRINT_PREFIX} llm_response[0:{n}]: {llm_response}")
+                # Split N into sequential chunks of size <= MAX_N (e.g. N=5, MAX_N=4 -> [4, 1])
+                chunks = []
+                remaining = n
+                while remaining > 0:
+                    current_chunk = min(remaining, max_n)
+                    chunks.append(current_chunk)
+                    remaining -= current_chunk
 
-                choices: list[Choice] = llm_response.choices
-
-                for choice in choices:
-                    message: OpenAIChatCompletionMessage = choice.message
-                    openai_content: Optional[str] = message.content
-                    
-                    if openai_content is not None:
-                        texts.append(openai_content)
-                    else:
-                        error_message = f"{PRINT_PREFIX} empty openai_content: {llm_response}"
-                        rprint(f"[red][bold]{error_message}[/bold][/red]")
-                        raise ValueError(error_message)
+                # Sequentially make requests for each chunk size
+                for chunk_n in chunks:
+                    try:
+                        llm_response = llm_call_openai(
+                            client,
+                            prompts['system'],  # type: ignore
+                            prompts['messages'],  # type: ignore
+                            stop_sequences,
+                            temperature,
+                            chunk_n,
+                            max_tokens
+                        )
+                        dprint(f"{PRINT_PREFIX} llm_response (n={chunk_n}): {llm_response}")
+                        if llm_response.choices:
+                            for choice in llm_response.choices:
+                                if choice.message.content is not None:
+                                    texts.append(choice.message.content)
+                                else:
+                                    error_message = f"{PRINT_PREFIX} empty openai_content: {llm_response}"
+                                    rprint(f"[red][bold]{error_message}[/bold][/red]")
+                        else:
+                            error_message = f"{PRINT_PREFIX} empty openai choices: {llm_response}"
+                            rprint(f"[red][bold]{error_message}[/bold][/red]")
+                    except Exception as exc:
+                        rprint(f"{PRINT_PREFIX} [red][bold]Error during API call for chunk n={chunk_n}: {exc}[/bold][/red]")
 
             result = [text for text in texts if text is not None]
             return result
