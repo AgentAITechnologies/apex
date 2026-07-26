@@ -35,36 +35,53 @@ def get_token():
         AUTH_URL = f"{AGENTAI_API_URL}/register"
         REDIRECT_URL = f"{AGENTAI_API_URL}/callback"
         
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=False)
-            context = browser.new_context()
-            page = context.new_page()
-            
-            dprint("Opening Discord authorization page...")
-            page.goto(AUTH_URL)
-            
-            dprint("Waiting for authorization and redirect...")
-            with page.expect_response(lambda response: REDIRECT_URL in response.url, timeout=AUTH_TIMEOUT_MS) as response_info:
-                response = response_info.value
-            
-            content = response.text()
-            browser.close()
-            
+        has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+        if has_display:
             try:
-                json_data = json.loads(content)
-                api_token = json_data.get('api_token')
-                if api_token:
-                    dprint("Successfully retrieved API token.")
-                    return api_token
-                else:
-                    error_message = "[red][bold]Failed to parse JSON response from API."
-                    rprint(f"[red][bold]{PRINT_PREFIX} {error_message}[/bold][/red]")
-                    raise AuthError(error_message)
-            except json.JSONDecodeError as e:
-                error_message = "Failed to parse JSON response from API."
-                rprint(f"[red][bold]{PRINT_PREFIX} {error_message}[/bold][/red]")
-                raise json.JSONDecodeError(msg=error_message, doc=e.doc, pos=e.pos)
-            
+                with sync_playwright() as p:
+                    browser = p.chromium.launch(headless=False)
+                    context = browser.new_context()
+                    page = context.new_page()
+                    
+                    dprint("Opening Discord authorization page...")
+                    page.goto(AUTH_URL)
+                    
+                    dprint("Waiting for authorization and redirect...")
+                    with page.expect_response(lambda response: REDIRECT_URL in response.url, timeout=AUTH_TIMEOUT_MS) as response_info:
+                        response = response_info.value
+                    
+                    content = response.text()
+                    browser.close()
+                    
+                    try:
+                        json_data = json.loads(content)
+                        api_token = json_data.get('api_token')
+                        if api_token:
+                            dprint("Successfully retrieved API token.")
+                            return api_token
+                    except json.JSONDecodeError as e:
+                        error_message = "Failed to parse JSON response from API."
+                        rprint(f"[red][bold]{PRINT_PREFIX} {error_message}[/bold][/red]")
+                        raise json.JSONDecodeError(msg=error_message, doc=e.doc, pos=e.pos)
+            except Exception as e:
+                dprint(f"{PRINT_PREFIX} Headed browser launch failed: {e}. Falling back to CLI authorization.")
+
+        # Fallback for SSH / Headless environments without a GUI display
+        rprint(f"\n[yellow][bold]Headless / SSH environment detected (no display server active).[/bold][/yellow]")
+        rprint(f"Please open the following authorization URL in your local web browser:\n")
+        rprint(f"[bold cyan]{AUTH_URL}[/bold cyan]\n")
+        
+        api_token = input("After authorizing, enter your AgentAI API Key / Token here > ").strip()
+        if api_token:
+            dprint("API token received from user input.")
+            return api_token
+        else:
+            error_message = "No API token provided."
+            rprint(f"[red][bold]{PRINT_PREFIX} {error_message}[/bold][/red]")
+            raise AuthError(error_message)
+
+
 def eula_decline():
     rprint("[yellow][bold]Please accept the End User License Agreement to launch the tool[/bold][/yellow]")
     exit(0)
@@ -85,7 +102,7 @@ def template2env(template_file=None, env_file=None):
     elif os.path.exists(env_file):
         dprint(f"{PRINT_PREFIX} {env_file} already exists. No action taken.", force_debug_mode=False)
     else:
-        dprint(f"[yellow][bold]{PRINT_PREFIX} {template_file} not found. No action taken.[/yellow][/bold]", force_debug_mode=False)
+        dprint(f"[yellow][bold]{PRINT_PREFIX} {template_file} not found. No action taken.", force_debug_mode=False)
 
 def setup_environment_variables(required_keys, env_file='.env'):
     load_dotenv()

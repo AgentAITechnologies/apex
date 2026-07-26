@@ -89,3 +89,29 @@ def write_persistent_note(persistent_note: str) -> None:
         error_message = f"{PRINT_PREFIX} persistent_notes.xml not found at {PERSISTENT_NOTES_FILE_PATH}"
         rprint(f"[red][bold]{error_message}[/bold][/red]")
         raise
+
+def clear_persistent_notes() -> None:
+    PERSISTENT_NOTES_FILE_PATH = get_persistent_notes_file_path()
+
+    try:
+        with open(PERSISTENT_NOTES_FILE_PATH, 'w') as file:
+            file.write("")
+        dprint(f"{PRINT_PREFIX} cleared persistent_notes")
+
+    except FileNotFoundError:
+        error_message = f"{PRINT_PREFIX} persistent_notes.xml not found at {PERSISTENT_NOTES_FILE_PATH}"
+        rprint(f"[red][bold]{error_message}[/bold][/red]")
+        raise
+
+def overwrite_persistent_notes(content: str) -> None:
+    PERSISTENT_NOTES_FILE_PATH = get_persistent_notes_file_path()
+
+    try:
+        with open(PERSISTENT_NOTES_FILE_PATH, 'w') as file:
+            file.write(content)
+        dprint(f"{PRINT_PREFIX} overwrote persistent_notes")
+
+    except FileNotFoundError:
+        error_message = f"{PRINT_PREFIX} persistent_notes.xml not found at {PERSISTENT_NOTES_FILE_PATH}"
+        rprint(f"[red][bold]{error_message}[/bold][/red]")
+        raise

@@ -119,7 +119,13 @@ class UI(Agent):
                     
                     self.memory.store_llm_response("<output>" + text + "</output>")
 
-                    parsed_response = xmlstr2dict(text, self.client)
+                    clean_text = text.strip()
+                    if clean_text.startswith("<output>"):
+                        clean_text = clean_text[len("<output>"):].strip()
+                    if clean_text.endswith("</output>"):
+                        clean_text = clean_text[:-len("</output>")].strip()
+
+                    parsed_response = xmlstr2dict(clean_text, self.client)
                     dprint(f"{self.PRINT_PREFIX} parsed_response:")
                     dprint(parsed_response)
 

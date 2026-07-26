@@ -2,9 +2,16 @@ import os
 import json
 import platform
 import random
+import signal
+import sys
+import threading
 from typing import Optional
 
-from pynput import keyboard
+# Gracefully handle pynput import in headless/SSH environments without a DISPLAY
+try:
+    from pynput import keyboard
+except (ImportError, Exception):
+    keyboard = None
 
 import dotenv
 
@@ -98,16 +105,129 @@ class ToT(Agent):
         self.unified_memory = Memory(prefix=self.PRINT_PREFIX)
         self.unified_steps = []
 
-        self.interrupt_listener = keyboard.Listener(on_press=self.on_press)
-        self.interrupt_listener.start()
+        self.interrupted = False
+        self.interrupt_listener = None
+        self._setup_interrupt_listener()
+
+    def _is_wayland(self) -> bool:
+        return (
+            platform.system() == "Linux"
+            and (os.environ.get("XDG_SESSION_TYPE") == "wayland" or "WAYLAND_DISPLAY" in os.environ)
+        )
+
+    def _setup_interrupt_listener(self) -> None:
+        # 1. Register OS Signal Handlers (Primary interrupt method for SSH/Headless/Ctrl+C)
+        try:
+            def _signal_handler(sig, frame):
+                dprint(f"{self.PRINT_PREFIX} Received signal {sig}, initiating graceful shutdown...")
+                self.interrupted = True
+                raise KeyboardInterrupt
+
+            signal.signal(signal.SIGINT, _signal_handler)
+            signal.signal(signal.SIGTERM, _signal_handler)
+            dprint(f"{self.PRINT_PREFIX} OS signal handlers registered (SIGINT/SIGTERM)")
+        except (ValueError, Exception) as e:
+            dprint(f"{self.PRINT_PREFIX} Could not set signal handlers: {e}")
+
+        # 2. Try pynput (for Desktop GUI / X11 / Wayland)
+        pynput_started = False
+        if keyboard is not None:
+            if self._is_wayland() and "PYNPUT_BACKEND_KEYBOARD" not in os.environ:
+                os.environ["PYNPUT_BACKEND_KEYBOARD"] = "uinput"
+
+            try:
+                self.interrupt_listener = keyboard.Listener(on_press=self.on_press)
+                self.interrupt_listener.start()
+                pynput_started = True
+                dprint(f"{self.PRINT_PREFIX} pynput listener started successfully")
+            except Exception as e:
+                dprint(f"{self.PRINT_PREFIX} pynput listener initialization skipped: {e}")
+
+        # 3. Fallbacks for SSH, Headless Linux, and Wayland
+        self._start_evdev_listener()
+
+    def _start_evdev_listener(self) -> None:
+        if platform.system() != "Linux":
+            return
+
+        try:
+            import evdev
+            from evdev import ecodes
+        except ImportError:
+            dprint(f"{self.PRINT_PREFIX} evdev module not installed; skipping evdev listener")
+            return
+
+        def listen_evdev():
+            try:
+                devices = [evdev.InputDevice(path) for path in evdev.list_devices()]
+                kbd_devices = [dev for dev in devices if ecodes.EV_KEY in dev.capabilities()]
+                if not kbd_devices:
+                    dprint(f"{self.PRINT_PREFIX} No accessible evdev keyboard devices found")
+                    return
+
+                import select
+                while not self.interrupted:
+                    r, _, _ = select.select(kbd_devices, [], [], 0.5)
+                    for dev in r:
+                        for event in dev.read():
+                            if event.type == ecodes.EV_KEY and event.value == 1:  # Key press
+                                if event.code == ecodes.KEY_ESC:
+                                    self.interrupted = True
+                                    return
+            except Exception as e:
+                dprint(f"{self.PRINT_PREFIX} evdev listener thread ended: {e}")
+
+        t = threading.Thread(target=listen_evdev, daemon=True)
+        t.start()
+
+    def _start_stdin_listener(self) -> None:
+        if platform.system() == "Windows" or not sys.stdin.isatty():
+            return
+
+        import select
+        import termios
+        import tty
+
+        def listen_stdin():
+            try:
+                fd = sys.stdin.fileno()
+                old_settings = termios.tcgetattr(fd)
+                tty.setcbreak(fd)
+                try:
+                    while not self.interrupted:
+                        r, _, _ = select.select([fd], [], [], 0.2)
+                        if r:
+                            ch = sys.stdin.read(1)
+                            # ASCII 0x1b (ESC) or ASCII 0x03 (Ctrl+C) over SSH terminal
+                            if ch in ('\x1b', '\x03'):
+                                self.interrupted = True
+                                break
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            except Exception as e:
+                dprint(f"{self.PRINT_PREFIX} stdin listener thread ended: {e}")
+
+        t = threading.Thread(target=listen_stdin, daemon=True)
+        t.start()
 
     def on_press(self, key):
-        if key == keyboard.Key.esc:
+        if keyboard is not None and key == keyboard.Key.esc:
             self.interrupted = True
 
     def check_interrupt(self):
         if self.interrupted:
             raise KeyboardInterrupt
+
+    def _fix_vote_xml(self, vote_str: str, start_seq: str) -> str:
+        """Ensures that vote XML responses contain valid opening and closing tags."""
+        v = vote_str.strip()
+        if not v.startswith(self.open_step_tag) and not v.startswith("<evaluation>"):
+            v = start_seq + v
+        if not v.endswith("</evaluation>") and not v.endswith(self.close_step_tag):
+            v = v + "</evaluation>"
+        if v.startswith(self.open_step_tag) and not v.endswith(self.close_step_tag):
+            v = v + self.close_step_tag
+        return v
 
     def run(self) -> None:
         self.trace = ""
@@ -116,7 +236,7 @@ class ToT(Agent):
         try:
             self.current_task: Optional[str] = xml2xmlstr(dict2xml(self.tasks[-1]))
 
-            rprint(f"[yellow][bold]Press the escape key at any time to stop the agent[/bold][/yellow]")
+            rprint(f"[yellow][bold]Press ESC or Ctrl+C at any time to stop the agent[/bold][/yellow]")
 
             dprint(f"{self.PRINT_PREFIX} task:\n{self.current_task}")
 
@@ -126,7 +246,6 @@ class ToT(Agent):
                                                             target_vector_query=self.current_task,
                                                             limit=REMOTE_EXAMPLE_COUNT)
             
-            # TODO: log this as an error depending on telemetry level
             if REMOTE_EXPERIENCES:
                 rprint(f"[green]done[/green]")
             else:
@@ -140,10 +259,6 @@ class ToT(Agent):
             if self.csm.current_state.name == "Done":
                 self.csm.transition("Plan", locals())
 
-            # TODO: Use code from prior tasks assigned to this agent
-            # A "here's what you've done so far" prompt section
-            # (execution state should already be preserved in execution_context dict)
-
             self.step_num = 1
             self.open_step_tag = f"<step_{self.step_num}>"
             self.close_step_tag = f"</step_{self.step_num}>"
@@ -153,7 +268,6 @@ class ToT(Agent):
             while self.csm.current_state.name != "Done":
                 self.check_interrupt()
 
-                # keep notes up to date in case someone else changes the notes
                 persistent_notes = read_persistent_notes()
                 
                 state_path = self.csm.current_state.get_hpath()
@@ -175,7 +289,6 @@ class ToT(Agent):
 
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
-                        # re-implement set() optimizaiton after verifying it doesn't interfere with shuffling logic
                         rprint(f"planning", end="")
                         with ProgressIndicator() as PI:               
                             plan_candidates: list[str] = llm_turns(client=self.client,
@@ -230,6 +343,8 @@ class ToT(Agent):
                                                     n=None)                
                         rprint(f"[green]done[/green]")
 
+                        plan_votes = [self._fix_vote_xml(v, start_seq) for v in plan_votes]
+
                         self.csm.transition("SumPlanVotes", locals())
 
                     case "SumPlanVotes":
@@ -260,7 +375,6 @@ class ToT(Agent):
                         
                         messages = self.unified_memory.conversation_history + [user_prompt, assistant_prompt]
 
-                        # re-implement set() optimizaiton after verifying it doesn't interfere with shuffling logic
                         rprint(f"proposing implementations", end="")
                         with ProgressIndicator() as PI:
                             raw_proposals: list[str] = llm_turns(client=self.client,
@@ -315,6 +429,8 @@ class ToT(Agent):
                                                     temperature=TEMP,
                                                     n=None)
                         rprint(f"[green]done[/green]")
+
+                        proposal_votes = [self._fix_vote_xml(v, start_seq) for v in proposal_votes]
 
                         self.csm.transition("SumProposeVotes", locals())
 
@@ -427,6 +543,8 @@ class ToT(Agent):
                                                           n=VOTER_COUNT)
                         rprint(f"[green]done[/green]")
                         
+                        exec_votes = [self._fix_vote_xml(v, start_seq) for v in exec_votes]
+
                         self.unified_step['exec_vote_strs'] = exec_votes
 
                         self.csm.transition("SumExecVote", locals())
@@ -450,22 +568,33 @@ class ToT(Agent):
                         raise ValueError(error_message)
 
         except KeyboardInterrupt as e:
-            rprint(f"{self.PRINT_PREFIX}[yellow][bold] Escape key pressed. Stopping the agent[/bold][/yellow]")
+            rprint(f"{self.PRINT_PREFIX}[yellow][bold] Interrupt received. Stopping the agent gracefully...[/bold][/yellow]")
             self.finalize_task()
 
     def finalize_task(self) -> None:
         if self.current_task:
             self.code_executor.condense_code_files(self.current_task)
             
-            PROVIDE_FEEDBACK = os.environ.get("PROVIDE_FEEDBACK") == "True"
+            # Aggregate execution outputs from completed steps
+            step_outputs = []
+            for step in self.unified_steps:
+                out = step.get('output', '').strip()
+                if out and out != "Code execution skipped by user.":
+                    step_outputs.append(out)
+
+            self.last_output = "\n".join(step_outputs) if step_outputs else "No standard output returned."
+
+            PROVIDE_FEEDBACK = os.environ.get("PROVIDE_FEEDBACK", "False").lower() == "true"
+            USE_EXPERIENCES = os.environ.get("USE_EXPERIENCES", "True").lower() == "true"
+
+            feedback = None
             if PROVIDE_FEEDBACK:
                 feedback = self.get_feedback()
-                if feedback:
-                    self.log_feedback(feedback)
-                else:
-                    dprint(f"[yellow][bold]{self.PRINT_PREFIX} No feedback to log[/bold][/yellow]")
+
+            if USE_EXPERIENCES:
+                self.save_experience(feedback)
             else:
-                rprint(f"[yellow][bold]{self.PRINT_PREFIX} PROVIDE_FEEDBACK not set to \"True\" in .env - not collecting performance feedback[/bold][/yellow]")
+                rprint(f"[yellow][bold]{self.PRINT_PREFIX} USE_EXPERIENCES not set to \"True\" in .env - not saving task experience[/bold][/yellow]")
 
             self.trace = ""
             self.current_task = None
@@ -508,62 +637,59 @@ class ToT(Agent):
 
         self.trace += step_trace
     
-    def log_feedback(self, feedback: FeedbackDict) -> None:
+    def save_experience(self, feedback: Optional[FeedbackDict] = None) -> None:
         LOGFILE_PATH = os.path.join(self.log_dir, RESULT_FILENAME)
 
-        with open(LOGFILE_PATH, 'a') as logfile:
-            logfile.write("\n")
+        if feedback:
+            with open(LOGFILE_PATH, 'a') as logfile:
+                logfile.write("\n")
 
-            logfile.write("<human_feedback>\n")
-            logfile.write(f"<success>{feedback['success']}</success>\n")
-            logfile.write(f"<details>{feedback['details']}</details>\n")
-            logfile.write(f"<elaboration>{feedback['elaboration']}</elaboration>\n")
-            logfile.write("</human_feedback>\n")
+                logfile.write("<human_feedback>\n")
+                logfile.write(f"<success>{feedback['success']}</success>\n")
+                logfile.write(f"<details>{feedback['details']}</details>\n")
+                logfile.write(f"<elaboration>{feedback['elaboration']}</elaboration>\n")
+                logfile.write("</human_feedback>\n")
 
-        PROVIDE_FEEDBACK = os.environ.get("PROVIDE_FEEDBACK") == "True"
-        if PROVIDE_FEEDBACK:
+        rprint(f"\nsaving experience to memory store", end="")
+        with ProgressIndicator() as PI:
 
-            rprint(f"\nsending feedback to experience platform", end="")
-            with ProgressIndicator() as PI:
+            with open(LOGFILE_PATH, 'r') as logfile:
+                logfile_text = logfile.read()
 
-                with open(LOGFILE_PATH, 'r') as logfile:
-                    logfile_text = logfile.read()
+            raw_log: dict = xmlstr2dict(logfile_text, self.client)
 
-                raw_log: dict = xmlstr2dict(logfile_text, self.client)
+            if "details" in raw_log:
+                details_str = f"<details>{raw_log['details']}</details>"
+            else:
+                details_str = ""
 
-                if "details" in raw_log:
-                    details_str = f"<details>{raw_log['details']}</details>"
-                else:
-                    details_str = ""
+            success_val = feedback['success'] if feedback and 'success' in feedback else True
+            details_val = feedback['details'] if feedback and 'details' in feedback else ""
+            elaboration_val = feedback['elaboration'] if feedback and 'elaboration' in feedback else ""
 
-                log = {
-                    "agent_name": self.name,
-                    "task": f"<task><description>{raw_log['task']}</description>{details_str}</task>",
-                    "trace": self.trace,
-                    "success": feedback['success'],
-                    "feedback": feedback['details'],
-                    "elaboration": feedback['elaboration'],
-                    "client_version": CLIENT_VERSION,
-                    "platform_details": get_platform_details(),
-                    "os_family": platform.system()
-                }
+            log = {
+                "agent_name": self.name,
+                "task": f"<task><description>{raw_log['task']}</description>{details_str}</task>",
+                "trace": self.trace,
+                "success": success_val,
+                "feedback": details_val,
+                "elaboration": elaboration_val,
+                "client_version": CLIENT_VERSION,
+                "platform_details": get_platform_details(),
+                "os_family": platform.system()
+            }
 
-                dprint(log)
+            dprint(log)
 
-                response = stage_experience(log)
+            response = stage_experience(log)
 
-                if response:
-                    dprint(f"{self.PRINT_PREFIX} response: {response.text}")
-                else:
-                    rprint(f"[red][bold]{self.PRINT_PREFIX} no response from experience submission![/bold][/red]")
-        else:
-            rprint(f"[yellow][bold]{self.PRINT_PREFIX} PROVIDE_FEEDBACK not set to \"True\" in .env - not sending feedback[/bold][/yellow]")
+            if response:
+                dprint(f"{self.PRINT_PREFIX} response: {response.text}")
 
         if not get_env_constants()["LOCAL_LOGS"]:
             rprint(f"[yellow][bold]{self.PRINT_PREFIX} LOCAL_LOGS not set to \"True\" in .env - removing local log cache[/bold][/yellow]")
             os.remove(LOGFILE_PATH)
 
-    # TODO: Summarize steps for easy human evaluation and pretty print the task
     def get_feedback(self) -> Optional[FeedbackDict]:
         feedback_intro = f"\n\nThe task:\n[white][bold]{format_nested_dict(xmlstr2dict(xml_string=self.current_task, client=self.client, depth=6), indent=4)}[/bold][/white]\n\n"
         
@@ -582,7 +708,6 @@ Your contributions make this tool more effective for everyone.[/bold][/{FRIENDLY
 """
         rprint(feedback_intro)
         
-        # TODO: implement one-off bypass ('c' for cancel)
         if not self.interrupted:
             success_prompt = "Was the task completed correctly, even if it took a while or involved self-correcting errors?"
             success = get_yes_no_input(success_prompt, with_cancel=True)
@@ -615,7 +740,6 @@ If you believe it was optimal, please indicate this."""
 
         return feedback
     
-    # TODO: return the LLM's self-commentary
     def clarify_feedback(self, feedback: dict) -> Optional[str]:
         if self.current_task:
             with open(os.path.join(self.log_dir, RESULT_FILENAME), 'r') as logfile:
@@ -714,8 +838,15 @@ Here's how it interprets your feedback on the last run:[/{FRIENDLY_COLOR}]
         for vote_i, vote in enumerate(candidate_votes):
             parsed_scores = xmlstr2dict(vote, self.client)
 
-            best_candidate_shuffled_idx = int(parsed_scores['best_candidate'])
-            worst_candidate_shuffled_idx = int(parsed_scores['worst_candidate'])
+            best_candidate_val = self._find_key_recursive(parsed_scores, 'best_candidate')
+            worst_candidate_val = self._find_key_recursive(parsed_scores, 'worst_candidate')
+
+            if best_candidate_val is None or worst_candidate_val is None:
+                dprint(f"{self.PRINT_PREFIX} Warning: Could not find best_candidate or worst_candidate in vote: {parsed_scores}")
+                continue
+
+            best_candidate_shuffled_idx = int(best_candidate_val)
+            worst_candidate_shuffled_idx = int(worst_candidate_val)
 
             index_map = index_maps[vote_i]
 
@@ -729,6 +860,17 @@ Here's how it interprets your feedback on the last run:[/{FRIENDLY_COLOR}]
 
         return scores
 
+    def _find_key_recursive(self, d: dict, target_key: str):
+        """Recursively search for a key in a nested dictionary."""
+        if isinstance(d, dict):
+            if target_key in d:
+                return d[target_key]
+            for value in d.values():
+                result = self._find_key_recursive(value, target_key)
+                if result is not None:
+                    return result
+        return None
+
     def reduce_scores_exec(self, unified_step: dict[str, str | list[str]]) -> tuple[float, float]:
         sum_yes_votes = 0
         avg_yes_votes = 0
@@ -739,10 +881,13 @@ Here's how it interprets your feedback on the last run:[/{FRIENDLY_COLOR}]
         for exec_vote_str in unified_step['exec_vote_strs']:
             parsed_scores = xmlstr2dict(exec_vote_str, self.client)
 
-            if parsed_scores['complete'] == "yes":
+            complete = self._find_key_recursive(parsed_scores, 'complete')
+            error = self._find_key_recursive(parsed_scores, 'error')
+
+            if complete == "yes":
                 sum_yes_votes += 1
 
-            if parsed_scores['error'] == "yes":
+            if error == "yes":
                 sum_error_votes += 1
 
         avg_yes_votes = sum_yes_votes / VOTER_COUNT

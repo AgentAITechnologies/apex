@@ -1,4 +1,3 @@
-
 from typing import Optional
 
 import dotenv
@@ -19,11 +18,15 @@ class Agent():
         self.name = name
         self.description = description
         self.tasks = tasks
+        self.last_output: str = ""
 
         dprint(f"{self.PRINT_PREFIX} dotenv.load_dotenv(): {dotenv.load_dotenv()}")
 
     def add_task(self, task: dict):
         self.tasks.append(task)
+
+    def get_last_output(self) -> str:
+        return self.last_output
 
     def run(self):
         pass

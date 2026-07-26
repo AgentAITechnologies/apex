@@ -2,9 +2,10 @@ PRINT_PREFIX = "[bold][MAIN][/bold]"
 
 import json
 import sys
-import anthropic
 import os
 import dotenv
+import httpx
+from openai import OpenAI
 
 import requests
 from rich import print as rprint
@@ -41,8 +42,17 @@ def main():
         TERM_WIDTH = int(os.environ.get("TERM_WIDTH", "160"))
         dprint(f"{PRINT_PREFIX} TERM_WIDTH (headless): {TERM_WIDTH}")
 
-    client = anthropic.Anthropic(
-        api_key=os.environ.get("ANTHROPIC_API_KEY"),
+    # Custom HTTP client configured to trust your shared DGX Spark CA certificate
+    ca_cert_path = os.environ.get("CUSTOM_SSL_CERT")
+    
+    http_client = httpx.Client(
+        verify=ca_cert_path if ca_cert_path and os.path.exists(ca_cert_path) else True
+    )
+
+    client = OpenAI(
+        base_url="https://192.168.1.214:8000/v1",
+        api_key=os.environ.get("OPENAI_API_KEY", "no-key"),
+        http_client=http_client,
     )
 
     agent_manager = AgentManager(client=client, prefix=PRINT_PREFIX)
@@ -97,7 +107,8 @@ if __name__ == "__main__":
 
 """
                     else:
-                        rprint(f"[yellow][bold]{PRINT_PREFIX} CRASH_INFO_LEVEL set to 0 in your .env file - not sending any crash info[/yellow][bold]")
+                        rprint(f"[yellow][bold]{PRINT_PREFIX} CRASH_INFO_LEVEL set to 0 in your .env file - not sending any crash info[/yellow][/bold]")
+                        sys.exit(1)
                         
                     user_approve = get_yes_no_input(user_message)
 

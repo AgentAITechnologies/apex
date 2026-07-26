@@ -150,9 +150,10 @@ def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict | list[PromptsDic
             raise ValueError(error_message)
         
         if isinstance(prompts['system'], str) and isinstance(prompts['messages'], list):
-            texts: list[Optional[str]] = [None] * n
+            texts: list[Optional[str]] = []
 
             if isinstance(client, Anthropic):
+                texts = [None] * n
                 with concurrent.futures.ThreadPoolExecutor(max_workers=n) as executor:
                     futures = []
 
@@ -169,9 +170,6 @@ def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict | list[PromptsDic
                             )
                         )
 
-                        # if i < n - 1:  # Don't delay after the last submission
-                            # time.sleep(0.1)
-                    
                     concurrent.futures.wait(futures)
 
                     llm_call_anthropic_futures_to_texts(texts, futures)
@@ -236,14 +234,35 @@ got {type(prompt['system'])} and {type(prompt['messages'])} respectively instead
                     )
                     futures.append(future)
                     
-                    # if i < n - 1:  # Don't delay after the last submission
-                        # time.sleep(0.1)
-                    
                 concurrent.futures.wait(futures)
                 llm_call_anthropic_futures_to_texts(texts, futures)
 
         elif isinstance(client, OpenAI):
-            raise NotImplementedError(f"OpenAI not supported for prompt list paralellization in this version ({CLIENT_VERSION})")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=n) as executor:
+                futures = []
+                for i in range(n):
+                    future = executor.submit(
+                        llm_call_openai,
+                        client,
+                        prompts[i]['system'],  # type: ignore
+                        prompts[i]['messages'],  # type: ignore
+                        stop_sequences,
+                        temperature,
+                        1,
+                        max_tokens
+                    )
+                    futures.append(future)
+
+                concurrent.futures.wait(futures)
+
+                for i, future in enumerate(futures):
+                    try:
+                        llm_response = future.result()
+                        dprint(f"{PRINT_PREFIX} llm_response[{i}]: {llm_response}")
+                        texts[i] = llm_response.choices[0].message.content
+                    except Exception as exc:
+                        rprint(f"{PRINT_PREFIX} [red][bold]Error obtaining future result: {exc}[/bold][/red]")
+                        texts[i] = None
 
         result = [text for text in texts if text is not None]
         return result

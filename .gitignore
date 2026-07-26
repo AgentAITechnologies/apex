@@ -47,3 +47,7 @@ conda-debug.log
 
 # media assets
 media_assets/
+
+# Working artifacts
+combined.md
+changes.diff

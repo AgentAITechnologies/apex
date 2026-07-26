@@ -10,7 +10,9 @@ from numpy import float64, ndarray, concatenate
 import sounddevice as sd
 from sounddevice import DeviceList
 import soundfile as sf
-from pynput import keyboard
+
+if os.environ.get("USE_STT", "False").lower() == "true":
+    from pynput import keyboard
 
 from rich import print
 

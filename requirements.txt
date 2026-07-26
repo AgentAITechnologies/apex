@@ -1,0 +1,32 @@
+# apex - Ubuntu Requirements
+# Python 3.10+ required
+
+# Core dependencies
+anthropic
+backoff
+evdev
+numpy
+openai
+playwright
+python-dotenv
+pynput
+pygraphviz
+requests
+rich
+typing-extensions
+
+# Vector Store & Local Memory
+chromadb
+fastembed
+langchain-community
+
+# Audio processing
+sounddevice
+soundfile
+
+# Testing
+pytest
+types-requests
+
+# Type checking
+mypy

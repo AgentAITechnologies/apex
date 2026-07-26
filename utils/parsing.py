@@ -60,9 +60,19 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
 
     xml_string = escape_code_blocks(xml_string)
 
+    stripped = xml_string.strip()
+    if stripped.startswith("<output>"):
+        stripped = stripped[len("<output>"):].strip()
+    if stripped.endswith("</output>"):
+        stripped = stripped[:-len("</output>")].strip()
+
+    has_root_tags = stripped.startswith("<root>") and stripped.endswith("</root>")
+    if not has_root_tags:
+        xml_string = f"<root>{stripped}</root>"
+    else:
+        xml_string = stripped
+
     try:
-        xml_string = xml_string.strip()
-        xml_string = f"<root>{xml_string}</root>"
         root = ET.fromstring(xml_string)
         
     except ET.ParseError:
@@ -88,6 +98,9 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
                                 stop_sequences=[stop_seq],
                                 temperature=1.0,
                                 max_tokens=min(len(xml_string) + TOKEN_GROWTH_ALLOWANCE, MAX_TOKENS_ANTHROPIC))
+
+            if not fixed_xml.strip().endswith("</root>"):
+                fixed_xml = fixed_xml.strip() + "</root>"
 
             return xmlstr2dict(fixed_xml, client, depth + 1)
         else:

@@ -19,6 +19,7 @@ from agents.tot.tot import ToT
 from utils.parsing import dict2xml, xml2xmlstr, xmlstr2dict
 from utils.llm import llm_turn
 from utils.console_io import ProgressIndicator
+from utils.files import write_persistent_note
 
 from anthropic import Anthropic
 
@@ -158,6 +159,18 @@ class AgentManager():
                     self.register_agent(new_agent)
 
                     new_agent.run()
+
+                    # Persist note on completion so UI is aware of execution status and output
+                    task_text = action.get('task', 'Unknown task') if isinstance(action, dict) else str(action)
+                    result_text = new_agent.get_last_output()
+
+                    note_xml = (
+                        f'<completed_task agent="{new_agent.name}">\n'
+                        f'  <task>{task_text}</task>\n'
+                        f'  <result>{result_text}</result>\n'
+                        f'</completed_task>'
+                    )
+                    write_persistent_note(note_xml)
                     
                     self.csm.transition("AwaitIPC", locals())
                     
@@ -170,6 +183,18 @@ class AgentManager():
 
                             agent.add_task(action)
                             agent.run()
+
+                            # Persist note on completion so UI is aware of execution status and output
+                            task_text = action.get('task', 'Unknown task') if isinstance(action, dict) else str(action)
+                            result_text = agent.get_last_output()
+
+                            note_xml = (
+                                f'<completed_task agent="{agent.name}">\n'
+                                f'  <task>{task_text}</task>\n'
+                                f'  <result>{result_text}</result>\n'
+                                f'</completed_task>'
+                            )
+                            write_persistent_note(note_xml)
 
                             self.csm.transition("AwaitIPC", locals)
 
@@ -207,6 +232,3 @@ class AgentManager():
             agents_xmlstr += f"</agent>\n"
 
         return agents_xmlstr
-
-
-

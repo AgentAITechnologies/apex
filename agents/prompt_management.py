@@ -20,19 +20,22 @@ def load_user_prompt(state_path: str, environ_path_key: str, dynamic_metaprompt:
     if dynamic_metaprompt:
         use_stt = os.environ.get("USE_STT") == "True"
 
-        if not use_stt:
-            print(dynamic_metaprompt, end="")
-            user_input = input()
+        while True:
+            if not use_stt:
+                print(dynamic_metaprompt, end="")
+                user_input = input()
+            else:
+                stt = STT()
 
-            return "<input>" + user_input + "</input>"
+                print(dynamic_metaprompt, end="")
+                user_input = stt.transcribe_speech()
 
-        else:
-            stt = STT()
+                print(user_input)
 
-            print(dynamic_metaprompt, end="")
-            user_input = stt.transcribe_speech()
-
-            print(user_input)
+            if user_input.strip().lower() == "/debug":
+                from utils.debug_tui import launch_debug_tui
+                launch_debug_tui()
+                continue
 
             return "<input>" + user_input + "</input>"
 
