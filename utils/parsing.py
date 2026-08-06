@@ -141,7 +141,7 @@ def xmlstr2dict(xml_string: str, client: Anthropic, depth: int = 0) -> dict:
                                         "messages": messages},
                                 stop_sequences=[stop_seq],
                                 temperature=0.0,
-                                max_tokens=min(len(xml_string) + TOKEN_GROWTH_ALLOWANCE, MAX_TOKENS_ANTHROPIC))
+                                max_tokens=None)
 
             if not fixed_xml.strip().endswith("</root>"):
                 fixed_xml = fixed_xml.strip() + "</root>"

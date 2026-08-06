@@ -283,15 +283,17 @@ class DebugTUI:
             table.add_column("Class", style="green")
             table.add_column("Description")
             table.add_column("Tasks Count", style="magenta")
+            table.add_column("Created At", style="dim")
 
             for i, agent in enumerate(agents):
                 name = getattr(agent, "name", "Unnamed")
                 cls_name = agent.__class__.__name__
                 desc = getattr(agent, "description", "")
-                if len(desc) > 50:
-                    desc = desc[:47] + "..."
+                if len(desc) > 40:
+                    desc = desc[:37] + "..."
                 tasks = getattr(agent, "tasks", [])
-                table.add_row(str(i + 1), name, cls_name, desc, str(len(tasks)))
+                created_at = getattr(agent, "created_at", "-")
+                table.add_row(str(i + 1), name, cls_name, desc, str(len(tasks)), created_at)
 
             self.console.print(table)
 
@@ -322,6 +324,8 @@ class DebugTUI:
                         Panel(
                             f"[bold]Name:[/bold] {getattr(ag, 'name', '')}\n"
                             f"[bold]Class:[/bold] {ag.__class__.__name__}\n"
+                            f"[bold]Created At:[/bold] {getattr(ag, 'created_at', '')}\n"
+                            f"[bold]Updated At:[/bold] {getattr(ag, 'updated_at', '')}\n"
                             f"[bold]Description:[/bold] {getattr(ag, 'description', '')}\n"
                             f"[bold]Tasks:[/bold] {json.dumps(getattr(ag, 'tasks', []), indent=2)}",
                             title=f"Agent #{idx + 1} Details",
@@ -353,11 +357,13 @@ class DebugTUI:
                     if Confirm.ask("Do you want to clear tasks for this agent?"):
                         ag.tasks = []
 
+                    agent_mgr.save_agents()
                     self.console.print("[green]Agent updated successfully![/green]")
                     Prompt.ask("Press Enter to continue")
             elif choice == "3":
                 if Confirm.ask("[bold red]Are you sure you want to clear the Agent Registry?[/bold red]"):
                     agent_mgr.agents.clear()
+                    agent_mgr.save_agents()
                     self.console.print("[green]Agent Registry cleared![/green]")
                     Prompt.ask("Press Enter to continue")
             elif choice == "4":
@@ -440,13 +446,15 @@ class DebugTUI:
             table.add_column("Index", style="bold yellow", width=6)
             table.add_column("Role", style="bold green", width=12)
             table.add_column("Content Preview", style="white")
+            table.add_column("Timestamp", style="dim", width=20)
 
             for i, msg in enumerate(history):
                 role = msg.get("role", "unknown")
                 content = msg.get("content", "")
+                ts = msg.get("timestamp", "-")
                 preview = (content[:80] + "...") if len(content) > 80 else content
                 preview = preview.replace("\n", " ")
-                table.add_row(str(i + 1), role, preview)
+                table.add_row(str(i + 1), role, preview, ts)
 
             if not history:
                 self.console.print("[italic yellow]Conversation history is currently empty.[/italic yellow]")
@@ -476,7 +484,9 @@ class DebugTUI:
                     self.console.clear()
                     self.console.print(
                         Panel(
-                            f"[bold]Role:[/bold] {msg.get('role')}\n\n[bold]Content:[/bold]\n{msg.get('content')}",
+                            f"[bold]Role:[/bold] {msg.get('role')}\n"
+                            f"[bold]Timestamp:[/bold] {msg.get('timestamp', '-')}\n\n"
+                            f"[bold]Content:[/bold]\n{msg.get('content')}",
                             title=f"Message #{m_idx}",
                             border_style="cyan",
                         )

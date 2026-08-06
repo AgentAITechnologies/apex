@@ -3,7 +3,6 @@ import io
 import sys
 from typing import Any, TextIO
 import dotenv
-import shutil
 
 from contextlib import redirect_stdout, redirect_stderr
 
@@ -61,7 +60,8 @@ class CodeExecutor:
         self.execution_context: dict[str, Any] = {}
 
     def __del__(self):
-        shutil.rmtree(self.SESSION_DIR)
+        # Session directory is preserved across runs for context persistence
+        pass
 
     def write_code_step_file(self, code: str, step_num: int) -> None:
         file_path = os.path.join(self.CODE_DIR, f"step_{step_num}.py")

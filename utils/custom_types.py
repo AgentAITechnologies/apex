@@ -2,7 +2,7 @@ from typing import Literal, Any, Dict, Union
 
 NestedStrDict = Dict[str, Union[str, 'NestedStrDict', None]]
 
-Message = dict[Literal['role', 'content'], str]
+Message = dict[Literal['role', 'content', 'timestamp'], str]
 PromptsDict = dict[Literal['system', 'messages'], str | list[Message]]
 
 StrScoresDict = dict[str, dict[str, str]]

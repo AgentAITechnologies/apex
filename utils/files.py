@@ -1,5 +1,7 @@
 import os
 import re
+from datetime import datetime
+import xml.etree.ElementTree as ET
 
 from rich import print as rprint
 from utils.console_io import debug_print as dprint
@@ -80,10 +82,23 @@ def read_persistent_notes() -> str:
 def write_persistent_note(persistent_note: str) -> None:
     PERSISTENT_NOTES_FILE_PATH = get_persistent_notes_file_path()
 
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    formatted_note = persistent_note.strip()
+
+    if formatted_note:
+        try:
+            elem = ET.fromstring(formatted_note)
+            if "timestamp" not in elem.attrib:
+                elem.attrib["timestamp"] = now_str
+            formatted_note = ET.tostring(elem, encoding="unicode")
+        except ET.ParseError:
+            if "<timestamp>" not in formatted_note and 'timestamp="' not in formatted_note:
+                formatted_note = f'<note timestamp="{now_str}">\n{formatted_note}\n</note>'
+
     try:
-        with open(PERSISTENT_NOTES_FILE_PATH, 'a') as file:
-            file.write(f"\n{persistent_note}\n")
-        dprint(f"{PRINT_PREFIX} wrote persistent_note: {persistent_note}")
+        with open(PERSISTENT_NOTES_FILE_PATH, 'a', encoding="utf-8") as file:
+            file.write(f"\n{formatted_note}\n")
+        dprint(f"{PRINT_PREFIX} wrote persistent_note: {formatted_note}")
 
     except FileNotFoundError:
         error_message = f"{PRINT_PREFIX} persistent_notes.xml not found at {PERSISTENT_NOTES_FILE_PATH}"

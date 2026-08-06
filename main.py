@@ -3,6 +3,7 @@ PRINT_PREFIX = "[bold][MAIN][/bold]"
 import json
 import sys
 import os
+import time
 import dotenv
 import httpx
 from openai import OpenAI
@@ -27,12 +28,60 @@ from agents.agent_manager.agent_manager import AgentManager
 from agents.ui.ui import UI
 
 
+def _connection_value_state(value: str | None) -> str:
+    return "set" if value else "missing"
+
+
+def ensure_llm_api_endpoint_is_alive(http_client: httpx.Client, openai_base_url: str) -> None:
+    selected_model = os.environ.get("OPENAI_MODEL")
+
+    dprint(f"{PRINT_PREFIX} [connection-check] Step 3/5 - Gather env inputs")
+    dprint(
+        f"{PRINT_PREFIX} [connection-check] Step 3/5 result: OPENAI_BASE_URL={openai_base_url}, "
+        f"OPENAI_MODEL={selected_model}, OPENAI_API_KEY={_connection_value_state(os.environ.get('OPENAI_API_KEY'))}"
+    )
+
+    probe_url = openai_base_url.rstrip("/")
+    dprint(f"{PRINT_PREFIX} [connection-check] Step 4/5 - Normalize endpoint probe URL")
+    dprint(f"{PRINT_PREFIX} [connection-check] Step 4/5 result: {probe_url}")
+
+    try:
+        dprint(
+            f"{PRINT_PREFIX} [connection-check] Step 5/5 - Probe {probe_url} "
+            "to verify endpoint is reachable"
+        )
+        start_time = time.perf_counter()
+        response = http_client.get(probe_url, timeout=5.0)
+        elapsed_seconds = time.perf_counter() - start_time
+        dprint(
+            f"{PRINT_PREFIX} [connection-check] Step 5/5 result: PASS (endpoint reachable with "
+            f"HTTP {response.status_code} in {elapsed_seconds:.2f}s)"
+        )
+    except Exception as exc:
+        elapsed_seconds = time.perf_counter() - start_time
+        dprint(
+            f"{PRINT_PREFIX} [connection-check] Step 5/5 result: FAIL (endpoint probe failed "
+            f"after {elapsed_seconds:.2f}s with error type={type(exc).__name__})"
+        )
+        error_message = (
+            f"{PRINT_PREFIX} Unable to reach configured LLM API endpoint before startup. "
+            f"OPENAI_BASE_URL={os.environ.get('OPENAI_BASE_URL')}. "
+            f"Root error: {exc}"
+        )
+        raise ConnectionError(error_message) from exc
+
+
 def main():
     setup_environment_variables(REQUIRED_SETUP_KEYS)
     
     dotenv.load_dotenv()
 
+    openai_base_url = os.environ.get("OPENAI_BASE_URL")
+    if not openai_base_url:
+        raise ValueError(f"{PRINT_PREFIX} OPENAI_BASE_URL not set in .env")
+
     rprint()    
+    dprint(f"{PRINT_PREFIX} [connection-check] Checklist: initial LLM connectivity validation")
 
     try:
         TERM_WIDTH = os.get_terminal_size().columns
@@ -44,16 +93,26 @@ def main():
 
     # Custom HTTP client configured to trust your shared DGX Spark CA certificate
     ca_cert_path = os.environ.get("CUSTOM_SSL_CERT")
+    dprint(f"{PRINT_PREFIX} [connection-check] Step 1/5 - Configure TLS verification")
+    cert_mode = "system-default"
+    if ca_cert_path:
+        cert_mode = f"custom:{ca_cert_path}" if os.path.exists(ca_cert_path) else f"missing-path:{ca_cert_path}"
+    dprint(
+        f"{PRINT_PREFIX} [connection-check] Step 1/5 result: {cert_mode}"
+    )
     
     http_client = httpx.Client(
         verify=ca_cert_path if ca_cert_path and os.path.exists(ca_cert_path) else True
     )
+    dprint(f"{PRINT_PREFIX} [connection-check] Step 2/5 - Build OpenAI client (PASS)")
 
     client = OpenAI(
-        base_url="https://192.168.1.214:8000/v1",
+        base_url=openai_base_url,
         api_key=os.environ.get("OPENAI_API_KEY", "no-key"),
         http_client=http_client,
     )
+
+    ensure_llm_api_endpoint_is_alive(http_client=http_client, openai_base_url=openai_base_url)
 
     agent_manager = AgentManager(client=client, prefix=PRINT_PREFIX)
 

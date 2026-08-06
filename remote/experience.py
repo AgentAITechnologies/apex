@@ -1,6 +1,7 @@
 import json
 import os
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from typing import Optional
 import requests
 
@@ -16,6 +17,10 @@ PRINT_PREFIX = "[bold][FEEDBACK][/bold]"
 
 
 def stage_experience(log: dict) -> Optional[requests.Response]:
+    now_str = log.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if "timestamp" not in log:
+        log["timestamp"] = now_str
+
     LOCAL_EXPERIENCES = os.environ.get("LOCAL_EXPERIENCES", "False").lower() == "true"
     if LOCAL_EXPERIENCES:
         output_dir = os.environ.get("OUTPUT_DIR", "data/output/")
@@ -33,7 +38,10 @@ def stage_experience(log: dict) -> Optional[requests.Response]:
 
         if task_content and isinstance(task_content, str):
             try:
-                ET.fromstring(task_content)
+                elem = ET.fromstring(task_content)
+                if "timestamp" not in elem.attrib:
+                    elem.attrib["timestamp"] = now_str
+                    task_content = ET.tostring(elem, encoding="unicode")
                 is_valid_xml = True
             except ET.ParseError:
                 is_valid_xml = False
@@ -43,7 +51,7 @@ def stage_experience(log: dict) -> Optional[requests.Response]:
                 xml_elem = dict2xml(log, tag="experience")
                 task_content = xml2xmlstr(xml_elem, no_root=False)
             except Exception:
-                task_content = f"<experience>{escape_xml(str(log))}</experience>"
+                task_content = f'<experience timestamp="{now_str}">{escape_xml(str(log))}</experience>'
 
         metadata = {}
         for k, v in log.items():
@@ -53,6 +61,9 @@ def stage_experience(log: dict) -> Optional[requests.Response]:
                 metadata[k] = ""
             else:
                 metadata[k] = json.dumps(v)
+
+        if "timestamp" not in metadata:
+            metadata["timestamp"] = now_str
 
         doc = Document(page_content=task_content, metadata=metadata)
 
@@ -162,7 +173,12 @@ def get_remote_experiences(target_vector_name: str, target_vector_query: str, li
             result = ""
             
             for i, experience in enumerate(experiences):
-                result += f"<example idx={i+1}>\n\n"
+                exp_time = experience.get('timestamp', '')
+                time_attr = f' timestamp="{exp_time}"' if exp_time else ''
+                result += f"<example idx={i+1}{time_attr}>\n\n"
+
+                if exp_time:
+                    result += f"<timestamp>{exp_time}</timestamp>\n"
 
                 result += experience.get('task', '') + "\n"
                 result += f"<os_type>{experience.get('os_family', '')}</os_type>" + "\n"

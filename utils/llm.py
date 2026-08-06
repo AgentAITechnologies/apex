@@ -54,7 +54,7 @@ def on_backoff_anthropic(details):
                       (RateLimitError, InternalServerError),
                       max_tries=10,
                       on_backoff=on_backoff_anthropic)
-def llm_call_anthropic(client: Anthropic, system: str, messages: list[Message], stop_sequences: list[str], temperature: float, max_tokens: int) -> AnthropicMessage:
+def llm_call_anthropic(client: Anthropic, system: str, messages: list[Message], stop_sequences: list[str], temperature: float, max_tokens: Optional[int] = 8192) -> AnthropicMessage:
     model = os.environ.get("ANTHROPIC_MODEL")
     if model is None:
         error_message = f"{PRINT_PREFIX} ANTHROPIC_MODEL not set"
@@ -63,10 +63,12 @@ def llm_call_anthropic(client: Anthropic, system: str, messages: list[Message], 
     
     anthropic_messages = cast_messages_anthropic(messages)
     
+    effective_max_tokens = max_tokens if max_tokens is not None else 8192
+
     try:
         message = client.messages.create(
             model=model,
-            max_tokens=max_tokens,
+            max_tokens=effective_max_tokens,
             temperature=temperature,
             system=system,
             messages=anthropic_messages,
@@ -116,7 +118,7 @@ def cast_messages_openai(messages: Iterable[Message]) -> list[ChatCompletionMess
 
     return casted_messages
 
-def llm_call_openai(client: OpenAI, system: str, messages: list[Message], stop_sequences: list[str], temperature: float, n: int, max_tokens: int) -> OpenAIChatCompletion:
+def llm_call_openai(client: OpenAI, system: str, messages: list[Message], stop_sequences: list[str], temperature: float, n: int, max_tokens: Optional[int] = None) -> OpenAIChatCompletion:
     model = os.environ.get("OPENAI_MODEL")
     if model is None:
         error_message = f"{PRINT_PREFIX} OPENAI_MODEL not set"
@@ -128,21 +130,25 @@ def llm_call_openai(client: OpenAI, system: str, messages: list[Message], stop_s
 
     casted_messages = cast_messages_openai(openai_messages)
 
-    response = client.chat.completions.create(
-        model=model,
-        messages=casted_messages,
-        stop=stop_sequences,
-        temperature=temperature,
-        n=n,
-        max_tokens=max_tokens
-    )
+    kwargs = {
+        "model": model,
+        "messages": casted_messages,
+        "stop": stop_sequences,
+        "temperature": temperature,
+        "n": n,
+    }
+
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+
+    response = client.chat.completions.create(**kwargs)
 
     return response
 
-def llm_turn(client: Anthropic | OpenAI, prompts: PromptsDict, stop_sequences: list[str], temperature: float, max_tokens: int = 4000) -> str:
+def llm_turn(client: Anthropic | OpenAI, prompts: PromptsDict, stop_sequences: list[str], temperature: float, max_tokens: Optional[int] = None) -> str:
     return llm_turns(client, prompts, stop_sequences, temperature, n=1, max_tokens=max_tokens)[0]
 
-def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict | list[PromptsDict], stop_sequences: list[str], temperature: float, n: Optional[int], max_tokens: int = 4000) -> list[str]:    
+def llm_turns(client: Anthropic | OpenAI, prompts: PromptsDict | list[PromptsDict], stop_sequences: list[str], temperature: float, n: Optional[int], max_tokens: Optional[int] = None) -> list[str]:    
     if isinstance(prompts, dict):
         if not isinstance(n, int) or n < 1:
             error_message = f"{PRINT_PREFIX} n must be a positive integer if prompts is a dictionary"

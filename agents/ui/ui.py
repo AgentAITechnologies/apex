@@ -7,6 +7,8 @@ from typing import cast
 import sounddevice as sd
 
 from rich import print as rprint
+from rich.console import Console
+from rich.markdown import Markdown
 from utils.console_io import debug_print as dprint
 
 from agents.agent import Agent
@@ -129,7 +131,8 @@ class UI(Agent):
                     dprint(f"{self.PRINT_PREFIX} parsed_response:")
                     dprint(parsed_response)
 
-                    rprint("\n[bold]" + parsed_response["response"] + "[/bold]\n")
+                    Console().print(Markdown(parsed_response["response"]), new_line_start=True)
+                    rprint("")
 
                     if os.environ.get("USE_TTS") == "True":
                         tts(parsed_response["response"])
@@ -144,17 +147,18 @@ class UI(Agent):
                 case "TakeNote":
                     if parsed_response and "notes" in parsed_response and parsed_response["notes"]:
                         dprint(f"{self.PRINT_PREFIX} note: {parsed_response['notes']}")
-                        write_persistent_note(xml2xmlstr(dict2xml(parsed_response["notes"])))
+                        notes_data = parsed_response["notes"]
+                        ts = datetime.now(timezone.utc).isoformat()
+                        if isinstance(notes_data, dict):
+                            notes_data["_timestamp"] = ts
+                            write_persistent_note(xml2xmlstr(dict2xml(notes_data)))
+                        else:
+                            write_persistent_note(f'<note timestamp="{ts}">{notes_data}</note>')
                     else:
                         error_message = f"{self.PRINT_PREFIX} no notes in parsed_response, despite being in {self.csm.current_state.get_hpath()}"
                         rprint(f"[red][bold]{error_message}[/bold][/red]")
                         raise UIError(error_message)
-                        
-                    if "action" in parsed_response and parsed_response["action"]:
-                        self.csm.transition("AssignAction", locals())
-                    else:
-                        self.csm.transition("PrintUIMessage", locals())
-
+                    
                 case "AssignAction":
                     if parsed_response and "action" in parsed_response and parsed_response["action"]:
                         dprint(f"{self.PRINT_PREFIX} action: {parsed_response['action']}")

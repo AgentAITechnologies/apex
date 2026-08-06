@@ -5,6 +5,7 @@ import random
 import signal
 import sys
 import threading
+from datetime import datetime
 from typing import Optional
 
 # Gracefully handle pynput import in headless/SSH environments without a DISPLAY
@@ -55,14 +56,16 @@ TEMP = 0.7
 class ToT(Agent):
     PRINT_PREFIX = "[blue][bold][ToT][/bold][/blue]"
 
-    def __init__(self, client: Anthropic, name: str, description: str, tasks: list[dict]) -> None:
+    def __init__(self, client: Anthropic, name: str, description: str, tasks: list[dict], created_at: Optional[str] = None, updated_at: Optional[str] = None) -> None:
         dotenv.load_dotenv()
 
         super().__init__(client=client,
                          prefix=self.PRINT_PREFIX,
                          name=name,
                          description=description,
-                         tasks=tasks)
+                         tasks=tasks,
+                         created_at=created_at,
+                         updated_at=updated_at)
 
         self.client = client
 
@@ -130,7 +133,6 @@ class ToT(Agent):
             dprint(f"{self.PRINT_PREFIX} Could not set signal handlers: {e}")
 
         # 2. Try pynput (for Desktop GUI / X11 / Wayland)
-        pynput_started = False
         if keyboard is not None:
             if self._is_wayland() and "PYNPUT_BACKEND_KEYBOARD" not in os.environ:
                 os.environ["PYNPUT_BACKEND_KEYBOARD"] = "uinput"
@@ -138,7 +140,6 @@ class ToT(Agent):
             try:
                 self.interrupt_listener = keyboard.Listener(on_press=self.on_press)
                 self.interrupt_listener.start()
-                pynput_started = True
                 dprint(f"{self.PRINT_PREFIX} pynput listener started successfully")
             except Exception as e:
                 dprint(f"{self.PRINT_PREFIX} pynput listener initialization skipped: {e}")
@@ -178,36 +179,6 @@ class ToT(Agent):
                 dprint(f"{self.PRINT_PREFIX} evdev listener thread ended: {e}")
 
         t = threading.Thread(target=listen_evdev, daemon=True)
-        t.start()
-
-    def _start_stdin_listener(self) -> None:
-        if platform.system() == "Windows" or not sys.stdin.isatty():
-            return
-
-        import select
-        import termios
-        import tty
-
-        def listen_stdin():
-            try:
-                fd = sys.stdin.fileno()
-                old_settings = termios.tcgetattr(fd)
-                tty.setcbreak(fd)
-                try:
-                    while not self.interrupted:
-                        r, _, _ = select.select([fd], [], [], 0.2)
-                        if r:
-                            ch = sys.stdin.read(1)
-                            # ASCII 0x1b (ESC) or ASCII 0x03 (Ctrl+C) over SSH terminal
-                            if ch in ('\x1b', '\x03'):
-                                self.interrupted = True
-                                break
-                finally:
-                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-            except Exception as e:
-                dprint(f"{self.PRINT_PREFIX} stdin listener thread ended: {e}")
-
-        t = threading.Thread(target=listen_stdin, daemon=True)
         t.start()
 
     def on_press(self, key):
@@ -253,8 +224,9 @@ class ToT(Agent):
 
             self.log_dir = create_incrementing_directory(self.output_dir, f"{self.name}_")
 
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             with open(os.path.join(self.log_dir, RESULT_FILENAME), 'w', errors="replace") as logfile:
-                logfile.write(self.current_task + "\n")
+                logfile.write(f'<task timestamp="{now_str}">' + self.current_task + "</task>\n")
 
             if self.csm.current_state.name == "Done":
                 self.csm.transition("Plan", locals())
@@ -622,15 +594,16 @@ class ToT(Agent):
         self.close_step_tag = f"</step_{self.step_num}>"
 
     def log_step(self, unified_user_str, unified_assistant_str) -> None:
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         step_trace = ""
 
         step_trace += "\n"
-        step_trace += self.open_step_tag + "\n"
+        step_trace += f'<step_{self.step_num} timestamp="{now_str}">\n'
         step_trace += "<user>"
         step_trace += unified_user_str + "</user>\n\n"
         step_trace += "<assistant>\n"
         step_trace += unified_assistant_str + "\n</assistant>\n"
-        step_trace += self.close_step_tag + "\n"
+        step_trace += f'</step_{self.step_num}>\n'
 
         with open(os.path.join(self.log_dir, RESULT_FILENAME), 'a') as logfile:
             logfile.write(step_trace)
@@ -639,12 +612,13 @@ class ToT(Agent):
     
     def save_experience(self, feedback: Optional[FeedbackDict] = None) -> None:
         LOGFILE_PATH = os.path.join(self.log_dir, RESULT_FILENAME)
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         if feedback:
             with open(LOGFILE_PATH, 'a') as logfile:
                 logfile.write("\n")
 
-                logfile.write("<human_feedback>\n")
+                logfile.write(f'<human_feedback timestamp="{now_str}">\n')
                 logfile.write(f"<success>{feedback['success']}</success>\n")
                 logfile.write(f"<details>{feedback['details']}</details>\n")
                 logfile.write(f"<elaboration>{feedback['elaboration']}</elaboration>\n")
@@ -687,16 +661,18 @@ class ToT(Agent):
 
             log = {
                 "agent_name": self.name,
-                "task": f"<task><description>{task_str}</description>{details_str}</task>",
+                "task": f'<task timestamp="{now_str}"><description>{task_str}</description>{details_str}</task>',
                 "trace": self.trace,
                 "success": success_val,
                 "feedback": details_val,
                 "elaboration": elaboration_val,
                 "client_version": CLIENT_VERSION,
                 "platform_details": get_platform_details(),
-                "os_family": platform.system()
+                "os_family": platform.system(),
+                "timestamp": now_str
             }
 
+            self.updated_at = now_str
             dprint(log)
 
             response = stage_experience(log)

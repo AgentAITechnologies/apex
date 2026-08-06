@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from datetime import datetime
 import dotenv
 
 from typing import Type, Optional
@@ -49,8 +50,7 @@ class AgentManager():
             
             sessions_dir = os.environ.get("SESSIONS_DIR")
             if sessions_dir is not None:
-                if os.path.exists(sessions_dir):
-                    shutil.rmtree(sessions_dir)
+                os.makedirs(sessions_dir, exist_ok=True)
             else:
                 error_message = f"{self.PRINT_PREFIX} SESSIONS_DIR environment variable not set (check .env)"
                 rprint(f"[red][bold]{error_message}[/bold][/red]")
@@ -81,8 +81,72 @@ class AgentManager():
 
             self.parsed_response = None
 
+            self.load_agents()
+
             self.__initialized = True
             dprint(f"{self.PRINT_PREFIX} Initialized the instance")
+
+    def get_agents_file_path(self) -> str:
+        output_dir = os.environ.get("OUTPUT_DIR", "data/output/")
+        os.makedirs(output_dir, exist_ok=True)
+        return os.path.join(output_dir, "registered_agents.json")
+
+    def save_agents(self) -> None:
+        filepath = self.get_agents_file_path()
+        data = []
+        for agent in self.agents:
+            if hasattr(agent, "to_dict"):
+                data.append(agent.to_dict())
+            else:
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                data.append({
+                    "name": getattr(agent, "name", ""),
+                    "description": getattr(agent, "description", ""),
+                    "tasks": getattr(agent, "tasks", []),
+                    "last_output": getattr(agent, "get_last_output", lambda: "")(),
+                    "created_at": getattr(agent, "created_at", now_str),
+                    "updated_at": getattr(agent, "updated_at", now_str),
+                    "class": agent.__class__.__name__
+                })
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            dprint(f"{self.PRINT_PREFIX} Saved registered agents to {filepath}")
+        except Exception as e:
+            rprint(f"[red]{self.PRINT_PREFIX} Failed to save agents: {e}[/red]")
+
+    def load_agents(self) -> None:
+        filepath = self.get_agents_file_path()
+        if not os.path.exists(filepath):
+            return
+
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            for item in data:
+                agent_name = item.get("name")
+                if not agent_name:
+                    continue
+
+                if any(ag.name == agent_name for ag in self.agents):
+                    continue
+
+                cls_name = item.get("class")
+                if cls_name == "ToT":
+                    agent = ToT(
+                        client=self.client,
+                        name=agent_name,
+                        description=item.get("description", ""),
+                        tasks=item.get("tasks", []),
+                        created_at=item.get("created_at"),
+                        updated_at=item.get("updated_at")
+                    )
+                    agent.last_output = item.get("last_output", "")
+                    self.register_agent(agent)
+            dprint(f"{self.PRINT_PREFIX} Loaded {len(data)} agents from {filepath}")
+        except Exception as e:
+            rprint(f"[red]{self.PRINT_PREFIX} Failed to load agents: {e}[/red]")
 
     def ipc(self, trigger: str, data: dict) -> None:
         self.csm.transition(trigger, locals())
@@ -167,14 +231,17 @@ class AgentManager():
                     # Persist note on completion so UI is aware of execution status and output
                     task_text = action.get('task', 'Unknown task') if isinstance(action, dict) else str(action)
                     result_text = new_agent.get_last_output()
+                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
                     note_xml = (
-                        f'<completed_task agent="{new_agent.name}">\n'
+                        f'<completed_task agent="{new_agent.name}" timestamp="{now_str}">\n'
                         f'  <task>{task_text}</task>\n'
                         f'  <result>{result_text}</result>\n'
                         f'</completed_task>'
                     )
                     write_persistent_note(note_xml)
+
+                    self.save_agents()
                     
                     self.csm.transition("AwaitIPC", locals())
                     
@@ -192,14 +259,17 @@ class AgentManager():
                             # Persist note on completion so UI is aware of execution status and output
                             task_text = action.get('task', 'Unknown task') if isinstance(action, dict) else str(action)
                             result_text = agent.get_last_output()
+                            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
                             note_xml = (
-                                f'<completed_task agent="{agent.name}">\n'
+                                f'<completed_task agent="{agent.name}" timestamp="{now_str}">\n'
                                 f'  <task>{task_text}</task>\n'
                                 f'  <result>{result_text}</result>\n'
                                 f'</completed_task>'
                             )
                             write_persistent_note(note_xml)
+
+                            self.save_agents()
 
                             self.csm.transition("AwaitIPC", locals)
 
@@ -211,13 +281,21 @@ class AgentManager():
 
     def register_agent(self, agent: Agent) -> None:
         dprint(f"{self.PRINT_PREFIX} Registering agent: {agent.name}")
-        self.agents.append(agent)
+        existing = next((ag for ag in self.agents if ag.name == agent.name), None)
+        if existing is None:
+            self.agents.append(agent)
+        else:
+            idx = self.agents.index(existing)
+            self.agents[idx] = agent
+        self.save_agents()
 
     def get_agents_xmlstr(self) -> str:
         agents_xmlstr: str = ""
 
         for i, agent in enumerate(self.agents):
-            agents_xmlstr += f"<agent idx={i}>\n"
+            created_str = getattr(agent, "created_at", "")
+            time_attr = f' created_at="{created_str}"' if created_str else ""
+            agents_xmlstr += f"<agent idx={i}{time_attr}>\n"
             agents_xmlstr += f"<name>{agent.name}</name>\n"
             agents_xmlstr += f"<description>{agent.description}</description>\n"
             agents_xmlstr += f"<tasks>\n"

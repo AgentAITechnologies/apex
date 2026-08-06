@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+from datetime import datetime
 import dotenv
 
 from rich import print
@@ -93,12 +94,16 @@ class Memory:
     def store_llm_response(self, result: str) -> None:
         if self.conversation_history[-1]["role"] == Role.ASSISTANT.value:
             self.conversation_history[-1]["content"] = result
+            self.conversation_history[-1]["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         else:
             error_message = f"{self.PRINT_PREFIX} Unexpected role at end of conversation: {self.conversation_history[-1]['role']}"
             print(f"[red][bold]{error_message}[/bold][/red]")
             raise PromptError(error_message)
 
     def add_msg(self, msg: Message) -> None:
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if "timestamp" not in msg:
+            msg["timestamp"] = now_str
         self.conversation_history.append(msg)
 
     def add_msg_obj(self, msg_obj: AnthropicMessage, frmt: dict[str, str]):
@@ -111,9 +116,11 @@ class Memory:
         if frmt:
             msg = msg.format(**frmt)
 
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         msg_item: Message = {
             'role': msg_obj.role,
-            'content': msg
+            'content': msg,
+            'timestamp': now_str
         }
 
         self.conversation_history.append(msg_item)
